@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { User, Settings, Bell, LogOut, Moon, ChevronRight, Shield, Trophy, Clock } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
 
 export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -53,6 +54,7 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
+      router.replace('/(auth)');
     } catch (error) {
       console.error('Error signing out:', error);
     }
