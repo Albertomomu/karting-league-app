@@ -1,15 +1,54 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Switch } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { User, Settings, Bell, LogOut, Moon, ChevronRight, Shield, Trophy, Clock } from 'lucide-react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [pilotData, setPilotData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchPilotData() {
+      if (!user) return;
+      
+      try {
+        setLoading(true);
+        
+        // Fetch pilot data if user is a pilot
+        if (user.user_metadata?.role === 'pilot') {
+          const { data, error } = await supabase
+            .from('pilots')
+            .select(`
+              *,
+              team:teams(name)
+            `)
+            .eq('user_id', user.id)
+            .single();
+          
+          if (error && error.code !== 'PGRST116') {
+            throw error;
+          }
+          
+          setPilotData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching pilot data:', error);
+        setError('Error al cargar los datos del piloto');
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchPilotData();
+  }, [user]);
 
   const handleSignOut = async () => {
     try {
@@ -30,154 +69,165 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Profile" showBackButton={false} />
+      <Header title="Perfil" showBackButton={false} />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileHeader}>
-          <View style={[styles.avatarContainer, { backgroundColor: colors.primaryLight }]}>
-            {user?.user_metadata?.avatar_url ? (
-              <Image 
-                source={{ uri: user.user_metadata.avatar_url }} 
-                style={styles.avatar} 
-              />
-            ) : (
-              <User size={40} color={colors.primary} />
-            )}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Cargando perfil...
+            </Text>
           </View>
-          
-          <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text }]}>
-              {user?.user_metadata?.name || 'Karting Pilot'}
-            </Text>
-            <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
-              {user?.email || 'pilot@kartingleague.com'}
-            </Text>
+        ) : (
+          <>
+            <View style={styles.profileHeader}>
+              <View style={[styles.avatarContainer, { backgroundColor: colors.primaryLight }]}>
+                {user?.user_metadata?.avatar_url ? (
+                  <Image 
+                    source={{ uri: user.user_metadata.avatar_url }} 
+                    style={styles.avatar} 
+                  />
+                ) : (
+                  <User size={40} color={colors.primary} />
+                )}
+              </View>
+              
+              <View style={styles.profileInfo}>
+                <Text style={[styles.profileName, { color: colors.text }]}>
+                  {user?.user_metadata?.name || pilotData?.name || 'Piloto de Karting'}
+                </Text>
+                <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
+                  {user?.email || 'piloto@kartingleague.com'}
+                </Text>
+                
+                {user?.user_metadata?.role === 'pilot' && (
+                  <View style={styles.pilotNumberContainer}>
+                    <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
+                      <Text style={[styles.pilotNumberText, { color: colors.white }]}>
+                        {user?.user_metadata?.number || pilotData?.number || '28'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.pilotTeam, { color: colors.textSecondary }]}>
+                      {pilotData?.team?.name || user?.user_metadata?.team || 'Equipo Independiente'}
+                    </Text>
+                  </View>
+                )}
+                
+                {user?.user_metadata?.role === 'organizer' && (
+                  <View style={styles.organizerBadge}>
+                    <Shield size={14} color={colors.white} />
+                    <Text style={styles.organizerText}>Organizador</Text>
+                  </View>
+                )}
+              </View>
+            </View>
             
             {user?.user_metadata?.role === 'pilot' && (
-              <View style={styles.pilotNumberContainer}>
-                <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.pilotNumberText, { color: colors.white }]}>
-                    {user?.user_metadata?.number || '28'}
-                  </Text>
+              <Card style={styles.statsCard}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Estadísticas de Temporada</Text>
+                
+                <View style={styles.statsGrid}>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Trophy size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.races}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Trophy size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podios</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Trophy size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Victorias</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Trophy size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Pos</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Clock size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestLap}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Trophy size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.points}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
+                  </View>
                 </View>
-                <Text style={[styles.pilotTeam, { color: colors.textSecondary }]}>
-                  {user?.user_metadata?.team || 'Team Alpha'}
-                </Text>
-              </View>
+              </Card>
             )}
             
-            {user?.user_metadata?.role === 'organizer' && (
-              <View style={styles.organizerBadge}>
-                <Shield size={14} color={colors.white} />
-                <Text style={styles.organizerText}>Organizer</Text>
+            <Card style={styles.settingsCard}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Ajustes</Text>
+              
+              <View style={styles.settingsList}>
+                <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
+                  <View style={styles.settingLeft}>
+                    <Bell size={20} color={colors.textSecondary} style={styles.settingIcon} />
+                    <Text style={[styles.settingText, { color: colors.text }]}>Notificaciones</Text>
+                  </View>
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={setNotificationsEnabled}
+                    trackColor={{ false: colors.border, true: colors.primaryLight }}
+                    thumbColor={notificationsEnabled ? colors.primary : colors.textSecondary}
+                  />
+                </View>
+                
+                <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
+                  <View style={styles.settingLeft}>
+                    <Moon size={20} color={colors.textSecondary} style={styles.settingIcon} />
+                    <Text style={[styles.settingText, { color: colors.text }]}>Modo Oscuro</Text>
+                  </View>
+                  <Switch
+                    value={isDark}
+                    onValueChange={toggleTheme}
+                    trackColor={{ false: colors.border, true: colors.primaryLight }}
+                    thumbColor={isDark ? colors.primary : colors.textSecondary}
+                  />
+                </View>
+                
+                <TouchableOpacity style={styles.settingItem}>
+                  <View style={styles.settingLeft}>
+                    <Settings size={20} color={colors.textSecondary} style={styles.settingIcon} />
+                    <Text style={[styles.settingText, { color: colors.text }]}>Ajustes de Cuenta</Text>
+                  </View>
+                  <ChevronRight size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
-        </View>
-        
-        {user?.user_metadata?.role === 'pilot' && (
-          <Card style={styles.statsCard}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Season Statistics</Text>
+            </Card>
             
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Trophy size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.races}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Races</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Trophy size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podiums</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Trophy size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Wins</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Trophy size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Best Pos</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Clock size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestLap}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Best Lap</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Trophy size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.points}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Points</Text>
-              </View>
-            </View>
-          </Card>
-        )}
-        
-        <Card style={styles.settingsCard}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Settings</Text>
-          
-          <View style={styles.settingsList}>
-            <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
-              <View style={styles.settingLeft}>
-                <Bell size={20} color={colors.textSecondary} style={styles.settingIcon} />
-                <Text style={[styles.settingText, { color: colors.text }]}>Notifications</Text>
-              </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{ false: colors.border, true: colors.primaryLight }}
-                thumbColor={notificationsEnabled ? colors.primary : colors.textSecondary}
-              />
-            </View>
-            
-            <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
-              <View style={styles.settingLeft}>
-                <Moon size={20} color={colors.textSecondary} style={styles.settingIcon} />
-                <Text style={[styles.settingText, { color: colors.text }]}>Dark Mode</Text>
-              </View>
-              <Switch
-                value={isDark}
-                onValueChange={toggleTheme}
-                trackColor={{ false: colors.border, true: colors.primaryLight }}
-                thumbColor={isDark ? colors.primary : colors.textSecondary}
-              />
-            </View>
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <Settings size={20} color={colors.textSecondary} style={styles.settingIcon} />
-                <Text style={[styles.settingText, { color: colors.text }]}>Account Settings</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textSecondary} />
+            <TouchableOpacity
+              style={[styles.signOutButton, { backgroundColor: colors.error }]}
+              onPress={handleSignOut}
+            >
+              <LogOut size={20} color={colors.white} style={styles.signOutIcon} />
+              <Text style={styles.signOutText}>Cerrar Sesión</Text>
             </TouchableOpacity>
-          </View>
-        </Card>
-        
-        <TouchableOpacity
-          style={[styles.signOutButton, { backgroundColor: colors.error }]}
-          onPress={handleSignOut}
-        >
-          <LogOut size={20} color={colors.white} style={styles.signOutIcon} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -190,6 +240,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
   },
   profileHeader: {
     flexDirection: 'row',

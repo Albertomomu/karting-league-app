@@ -1,22 +1,24 @@
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { Calendar, Flag, Clock, ChevronRight } from 'lucide-react-native';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, Race, RaceResult } from '@/lib/supabase';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const [nextRace, setNextRace] = useState(null);
-  const [recentResults, setRecentResults] = useState([]);
+  const [nextRace, setNextRace] = useState<Race | null>(null);
+  const [recentResults, setRecentResults] = useState<RaceResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
+        setLoading(true);
         // Fetch next race
         const { data: raceData, error: raceError } = await supabase
           .from('races')
@@ -54,11 +56,13 @@ export default function HomeScreen() {
 
         if (resultsError) {
           console.error('Error fetching recent results:', resultsError);
+          setError('Error al cargar los resultados recientes');
         } else {
           setRecentResults(resultsData || []);
         }
       } catch (error) {
         console.error('Error in data fetching:', error);
+        setError('Error al cargar los datos');
       } finally {
         setLoading(false);
       }
@@ -75,111 +79,128 @@ export default function HomeScreen() {
         {user && (
           <View style={styles.welcomeSection}>
             <Text style={[styles.welcomeText, { color: colors.text }]}>
-              Welcome back, {user.user_metadata?.name || 'Pilot'}!
+              ¡Bienvenido, {user.user_metadata?.name || 'Piloto'}!
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Stay updated with the latest race information
+              Mantente al día con la información más reciente
             </Text>
           </View>
         )}
 
-        {nextRace && (
-          <Card style={styles.nextRaceCard}>
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Next Race</Text>
-              <Calendar size={20} color={colors.primary} />
-            </View>
-            
-            <View style={styles.nextRaceContent}>
-              <Image 
-                source={{ uri: nextRace.circuit_image || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
-                style={styles.circuitImage} 
-              />
-              <View style={styles.raceInfo}>
-                <Text style={[styles.raceName, { color: colors.text }]}>{nextRace.name}</Text>
-                <Text style={[styles.raceCircuit, { color: colors.textSecondary }]}>
-                  {nextRace.circuit_name}
-                </Text>
-                <Text style={[styles.raceDate, { color: colors.primary }]}>
-                  {new Date(nextRace.date).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </Text>
-              </View>
-            </View>
-          </Card>
-        )}
-
-        <View style={styles.statsSection}>
-          <Card style={styles.statCard}>
-            <View style={styles.statContent}>
-              <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                <Flag size={20} color={colors.primary} />
-              </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>12</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Races</Text>
-            </View>
-          </Card>
-          
-          <Card style={styles.statCard}>
-            <View style={styles.statContent}>
-              <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                <Clock size={20} color={colors.primary} />
-              </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>1:22.456</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Best Lap</Text>
-            </View>
-          </Card>
-        </View>
-
-        <View style={styles.recentResultsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Results</Text>
-            <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
-              <ChevronRight size={16} color={colors.primary} />
-            </TouchableOpacity>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Cargando datos...
+            </Text>
           </View>
-
-          {loading ? (
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading results...</Text>
-          ) : recentResults.length > 0 ? (
-            recentResults.map((result, index) => (
-              <Card key={result.id || index} style={styles.resultCard}>
-                <View style={styles.resultHeader}>
-                  <Text style={[styles.resultCircuit, { color: colors.textSecondary }]}>
-                    {result.races?.circuits?.name || 'Unknown Circuit'}
-                  </Text>
-                  <Text style={[styles.resultSession, { color: colors.primary }]}>
-                    {result.session_type || 'Race'}
-                  </Text>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+          </View>
+        ) : (
+          <>
+            {nextRace && (
+              <Card style={styles.nextRaceCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima Carrera</Text>
+                  <Calendar size={20} color={colors.primary} />
                 </View>
-                <View style={styles.resultContent}>
-                  <View style={styles.pilotInfo}>
-                    <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.pilotNumberText, { color: colors.white }]}>
-                        {result.pilots?.number || '00'}
-                      </Text>
-                    </View>
-                    <Text style={[styles.pilotName, { color: colors.text }]}>
-                      {result.pilots?.name || 'Unknown Pilot'}
+                
+                <View style={styles.nextRaceContent}>
+                  <Image 
+                    source={{ uri: nextRace.circuit_image || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
+                    style={styles.circuitImage} 
+                  />
+                  <View style={styles.raceInfo}>
+                    <Text style={[styles.raceName, { color: colors.text }]}>{nextRace.name}</Text>
+                    <Text style={[styles.raceCircuit, { color: colors.textSecondary }]}>
+                      {nextRace.circuit_name}
                     </Text>
-                  </View>
-                  <View style={styles.positionContainer}>
-                    <Text style={[styles.position, { color: colors.text }]}>
-                      {result.position || '-'}
+                    <Text style={[styles.raceDate, { color: colors.primary }]}>
+                      {new Date(nextRace.date).toLocaleDateString('es-ES', {
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
                     </Text>
-                    <Text style={[styles.positionLabel, { color: colors.textSecondary }]}>POS</Text>
                   </View>
                 </View>
               </Card>
-            ))
-          ) : (
-            <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>No recent results available</Text>
-          )}
-        </View>
+            )}
+
+            <View style={styles.statsSection}>
+              <Card style={styles.statCard}>
+                <View style={styles.statContent}>
+                  <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                    <Flag size={20} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.statValue, { color: colors.text }]}>12</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
+                </View>
+              </Card>
+              
+              <Card style={styles.statCard}>
+                <View style={styles.statContent}>
+                  <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                    <Clock size={20} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.statValue, { color: colors.text }]}>1:22.456</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+                </View>
+              </Card>
+            </View>
+
+            <View style={styles.recentResultsSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Resultados Recientes</Text>
+                <TouchableOpacity style={styles.viewAllButton}>
+                  <Text style={[styles.viewAllText, { color: colors.primary }]}>Ver Todos</Text>
+                  <ChevronRight size={16} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+
+              {recentResults.length > 0 ? (
+                recentResults.map((result, index) => (
+                  <Card key={result.id || index} style={styles.resultCard}>
+                    <View style={styles.resultHeader}>
+                      <Text style={[styles.resultCircuit, { color: colors.textSecondary }]}>
+                        {result.races?.circuits?.name || 'Circuito Desconocido'}
+                      </Text>
+                      <Text style={[styles.resultSession, { color: colors.primary }]}>
+                        {result.session_type === 'practice' ? 'Práctica' : 
+                         result.session_type === 'qualifying' ? 'Clasificación' :
+                         result.session_type === 'race1' ? 'Carrera 1' :
+                         result.session_type === 'race2' ? 'Carrera 2' : 
+                         result.session_type}
+                      </Text>
+                    </View>
+                    <View style={styles.resultContent}>
+                      <View style={styles.pilotInfo}>
+                        <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
+                          <Text style={[styles.pilotNumberText, { color: colors.white }]}>
+                            {result.pilots?.number || '00'}
+                          </Text>
+                        </View>
+                        <Text style={[styles.pilotName, { color: colors.text }]}>
+                          {result.pilots?.name || 'Piloto Desconocido'}
+                        </Text>
+                      </View>
+                      <View style={styles.positionContainer}>
+                        <Text style={[styles.position, { color: colors.text }]}>
+                          {result.position || '-'}
+                        </Text>
+                        <Text style={[styles.positionLabel, { color: colors.textSecondary }]}>POS</Text>
+                      </View>
+                    </View>
+                  </Card>
+                ))
+              ) : (
+                <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>No hay resultados recientes disponibles</Text>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -204,6 +225,23 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     marginTop: 4,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: 'red',
   },
   nextRaceCard: {
     marginBottom: 24,
@@ -344,10 +382,6 @@ const styles = StyleSheet.create({
   },
   positionLabel: {
     fontSize: 12,
-  },
-  loadingText: {
-    textAlign: 'center',
-    padding: 16,
   },
   noResultsText: {
     textAlign: 'center',

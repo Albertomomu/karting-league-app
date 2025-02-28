@@ -1,38 +1,91 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { Trophy, Users, Calendar } from 'lucide-react-native';
+import { supabase, PilotStanding, TeamStanding, Season } from '@/lib/supabase';
 
 export default function StandingsScreen() {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('pilots');
-  const [season, setSeason] = useState('2025');
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [pilotStandings, setPilotStandings] = useState<PilotStanding[]>([]);
+  const [teamStandings, setTeamStandings] = useState<TeamStanding[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const pilotStandings = [
-    { id: 1, position: 1, number: '28', name: 'Carlos Rodríguez', points: 187, team: 'Team Alpha' },
-    { id: 2, position: 2, number: '14', name: 'Laura Martínez', points: 172, team: 'Team Beta' },
-    { id: 3, position: 3, number: '07', name: 'Miguel Sánchez', points: 156, team: 'Team Gamma' },
-    { id: 4, position: 4, number: '42', name: 'Ana López', points: 143, team: 'Team Delta' },
-    { id: 5, position: 5, number: '19', name: 'Javier García', points: 128, team: 'Team Alpha' },
-    { id: 6, position: 6, number: '33', name: 'Elena Pérez', points: 112, team: 'Team Beta' },
-    { id: 7, position: 7, number: '55', name: 'David Fernández', points: 98, team: 'Team Gamma' },
-    { id: 8, position: 8, number: '21', name: 'Sofía Ruiz', points: 87, team: 'Team Delta' },
-  ];
+  useEffect(() => {
+    async function fetchSeasons() {
+      try {
+        const { data, error } = await supabase
+          .from('seasons')
+          .select('*')
+          .order('start_date', { ascending: false });
 
-  const teamStandings = [
-    { id: 1, position: 1, name: 'Team Alpha', points: 315, pilots: 'C. Rodríguez, J. García' },
-    { id: 2, position: 2, name: 'Team Beta', points: 284, pilots: 'L. Martínez, E. Pérez' },
-    { id: 3, position: 3, name: 'Team Gamma', points: 254, pilots: 'M. Sánchez, D. Fernández' },
-    { id: 4, position: 4, name: 'Team Delta', points: 230, pilots: 'A. López, S. Ruiz' },
-  ];
+        if (error) {
+          throw error;
+        }
 
-  const seasons = ['2023', '2024', '2025'];
+        setSeasons(data || []);
+        
+        // Set active season as default
+        const activeSeason = data?.find(season => season.is_active);
+        if (activeSeason) {
+          setSelectedSeason(activeSeason.id);
+        } else if (data && data.length > 0) {
+          setSelectedSeason(data[0].id);
+        }
+      } catch (error) {
+        console.error('Error fetching seasons:', error);
+        setError('Error al cargar las temporadas');
+      }
+    }
+
+    fetchSeasons();
+  }, []);
+
+  useEffect(() => {
+    async function fetchStandings() {
+      if (!selectedSeason) return;
+      
+      try {
+        setLoading(true);
+        
+        // Fetch pilot standings
+        const { data: pilotData, error: pilotError } = await supabase
+          .rpc('get_pilot_standings', { season_id: selectedSeason });
+
+        if (pilotError) {
+          throw pilotError;
+        }
+
+        setPilotStandings(pilotData || []);
+
+        // Fetch team standings
+        const { data: teamData, error: teamError } = await supabase
+          .rpc('get_team_standings', { season_id: selectedSeason });
+
+        if (teamError) {
+          throw teamError;
+        }
+
+        setTeamStandings(teamData || []);
+      } catch (error) {
+        console.error('Error fetching standings:', error);
+        setError('Error al cargar las clasificaciones');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStandings();
+  }, [selectedSeason]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Standings" showBackButton={false} />
+      <Header title="Clasificaciones" showBackButton={false} />
       
       <View style={styles.tabsContainer}>
         <TouchableOpacity
@@ -49,7 +102,7 @@ export default function StandingsScreen() {
               { color: activeTab === 'pilots' ? colors.primary : colors.textSecondary }
             ]}
           >
-            Pilots
+            Pilotos
           </Text>
         </TouchableOpacity>
         
@@ -67,7 +120,7 @@ export default function StandingsScreen() {
               { color: activeTab === 'teams' ? colors.primary : colors.textSecondary }
             ]}
           >
-            Teams
+            Equipos
           </Text>
         </TouchableOpacity>
       </View>
@@ -75,116 +128,139 @@ export default function StandingsScreen() {
       <View style={styles.seasonSelector}>
         <View style={styles.seasonHeader}>
           <Calendar size={18} color={colors.textSecondary} />
-          <Text style={[styles.seasonLabel, { color: colors.textSecondary }]}>Season:</Text>
+          <Text style={[styles.seasonLabel, { color: colors.textSecondary }]}>Temporada:</Text>
         </View>
-        <View style={styles.seasonButtons}>
-          {seasons.map((s) => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.seasonButtons}>
+          {seasons.map((season) => (
             <TouchableOpacity
-              key={s}
+              key={season.id}
               style={[
                 styles.seasonButton,
-                season === s && { ...styles.activeSeason, backgroundColor: colors.primaryLight }
+                selectedSeason === season.id && { ...styles.activeSeason, backgroundColor: colors.primaryLight }
               ]}
-              onPress={() => setSeason(s)}
+              onPress={() => setSelectedSeason(season.id)}
             >
               <Text
                 style={[
                   styles.seasonButtonText,
-                  { color: season === s ? colors.primary : colors.textSecondary }
+                  { color: selectedSeason === season.id ? colors.primary : colors.textSecondary }
                 ]}
               >
-                {s}
+                {season.name}
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {activeTab === 'pilots' ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Cargando clasificaciones...
+            </Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+          </View>
+        ) : activeTab === 'pilots' ? (
           <View style={styles.standingsContainer}>
             <View style={styles.tableHeader}>
               <Text style={[styles.positionHeader, { color: colors.textSecondary }]}>Pos</Text>
-              <Text style={[styles.pilotHeader, { color: colors.textSecondary }]}>Pilot</Text>
-              <Text style={[styles.teamHeader, { color: colors.textSecondary }]}>Team</Text>
+              <Text style={[styles.pilotHeader, { color: colors.textSecondary }]}>Piloto</Text>
+              <Text style={[styles.teamHeader, { color: colors.textSecondary }]}>Equipo</Text>
               <Text style={[styles.pointsHeader, { color: colors.textSecondary }]}>Pts</Text>
             </View>
             
-            {pilotStandings.map((pilot) => (
-              <Card key={pilot.id} style={styles.standingCard}>
-                <View style={styles.standingRow}>
-                  <View style={styles.positionContainer}>
-                    <View 
-                      style={[
-                        styles.positionBadge, 
-                        pilot.position === 1 ? { backgroundColor: '#FFD700' } :
-                        pilot.position === 2 ? { backgroundColor: '#C0C0C0' } :
-                        pilot.position === 3 ? { backgroundColor: '#CD7F32' } :
-                        { backgroundColor: colors.card }
-                      ]}
-                    >
-                      <Text style={[styles.positionText, { color: pilot.position <= 3 ? '#000' : colors.text }]}>
-                        {pilot.position}
-                      </Text>
+            {pilotStandings.length > 0 ? (
+              pilotStandings.map((pilot) => (
+                <Card key={pilot.pilot_id} style={styles.standingCard}>
+                  <View style={styles.standingRow}>
+                    <View style={styles.positionContainer}>
+                      <View 
+                        style={[
+                          styles.positionBadge, 
+                          pilot.position === 1 ? { backgroundColor: '#FFD700' } :
+                          pilot.position === 2 ? { backgroundColor: '#C0C0C0' } :
+                          pilot.position === 3 ? { backgroundColor: '#CD7F32' } :
+                          { backgroundColor: colors.card }
+                        ]}
+                      >
+                        <Text style={[styles.positionText, { color: pilot.position <= 3 ? '#000' : colors.text }]}>
+                          {pilot.position}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.pilotContainer}>
+                      <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
+                        <Text style={[styles.pilotNumberText, { color: colors.white }]}>
+                          {pilot.pilot_number}
+                        </Text>
+                      </View>
+                      <Text style={[styles.pilotName, { color: colors.text }]}>{pilot.pilot_name}</Text>
+                    </View>
+                    
+                    <Text style={[styles.teamName, { color: colors.textSecondary }]}>{pilot.team_name}</Text>
+                    
+                    <View style={styles.pointsContainer}>
+                      <Text style={[styles.points, { color: colors.text }]}>{pilot.total_points}</Text>
                     </View>
                   </View>
-                  
-                  <View style={styles.pilotContainer}>
-                    <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.pilotNumberText, { color: colors.white }]}>
-                        {pilot.number}
-                      </Text>
-                    </View>
-                    <Text style={[styles.pilotName, { color: colors.text }]}>{pilot.name}</Text>
-                  </View>
-                  
-                  <Text style={[styles.teamName, { color: colors.textSecondary }]}>{pilot.team}</Text>
-                  
-                  <View style={styles.pointsContainer}>
-                    <Text style={[styles.points, { color: colors.text }]}>{pilot.points}</Text>
-                  </View>
-                </View>
-              </Card>
-            ))}
+                </Card>
+              ))
+            ) : (
+              <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
+                No hay datos de clasificación disponibles para esta temporada
+              </Text>
+            )}
           </View>
         ) : (
           <View style={styles.standingsContainer}>
             <View style={styles.tableHeader}>
               <Text style={[styles.positionHeader, { color: colors.textSecondary }]}>Pos</Text>
-              <Text style={[styles.teamTableHeader, { color: colors.textSecondary }]}>Team</Text>
+              <Text style={[styles.teamTableHeader, { color: colors.textSecondary }]}>Equipo</Text>
               <Text style={[styles.pointsHeader, { color: colors.textSecondary }]}>Pts</Text>
             </View>
             
-            {teamStandings.map((team) => (
-              <Card key={team.id} style={styles.standingCard}>
-                <View style={styles.standingRow}>
-                  <View style={styles.positionContainer}>
-                    <View 
-                      style={[
-                        styles.positionBadge, 
-                        team.position === 1 ? { backgroundColor: '#FFD700' } :
-                        team.position === 2 ? { backgroundColor: '#C0C0C0' } :
-                        team.position === 3 ? { backgroundColor: '#CD7F32' } :
-                        { backgroundColor: colors.card }
-                      ]}
-                    >
-                      <Text style={[styles.positionText, { color: team.position <= 3 ? '#000' : colors.text }]}>
-                        {team.position}
-                      </Text>
+            {teamStandings.length > 0 ? (
+              teamStandings.map((team) => (
+                <Card key={team.team_id} style={styles.standingCard}>
+                  <View style={styles.standingRow}>
+                    <View style={styles.positionContainer}>
+                      <View 
+                        style={[
+                          styles.positionBadge, 
+                          team.position === 1 ? { backgroundColor: '#FFD700' } :
+                          team.position === 2 ? { backgroundColor: '#C0C0C0' } :
+                          team.position === 3 ? { backgroundColor: '#CD7F32' } :
+                          { backgroundColor: colors.card }
+                        ]}
+                      >
+                        <Text style={[styles.positionText, { color: team.position <= 3 ? '#000' : colors.text }]}>
+                          {team.position}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.teamInfoContainer}>
+                      <Text style={[styles.teamTableName, { color: colors.text }]}>{team.team_name}</Text>
+                      <Text style={[styles.teamPilots, { color: colors.textSecondary }]}>{team.pilots_list}</Text>
+                    </View>
+                    
+                    <View style={styles.pointsContainer}>
+                      <Text style={[styles.points, { color: colors.text }]}>{team.total_points}</Text>
                     </View>
                   </View>
-                  
-                  <View style={styles.teamInfoContainer}>
-                    <Text style={[styles.teamTableName, { color: colors.text }]}>{team.name}</Text>
-                    <Text style={[styles.teamPilots, { color: colors.textSecondary }]}>{team.pilots}</Text>
-                  </View>
-                  
-                  <View style={styles.pointsContainer}>
-                    <Text style={[styles.points, { color: colors.text }]}>{team.points}</Text>
-                  </View>
-                </View>
-              </Card>
-            ))}
+                </Card>
+              ))
+            ) : (
+              <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
+                No hay datos de clasificación de equipos disponibles para esta temporada
+              </Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -252,6 +328,27 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  noDataText: {
+    textAlign: 'center',
+    padding: 20,
+    fontSize: 16,
   },
   standingsContainer: {
     marginBottom: 24,

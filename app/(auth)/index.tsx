@@ -29,7 +29,7 @@ export default function WelcomeScreen() {
         
         <Text style={[styles.title, { color: colors.text }]}>Karting League</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          The ultimate companion for karting enthusiasts
+          La aplicación exclusiva para los pilotos del campeonato
         </Text>
         
         <View style={styles.features}>
@@ -38,9 +38,9 @@ export default function WelcomeScreen() {
               <Text style={[styles.featureIconText, { color: colors.primary }]}>🏁</Text>
             </View>
             <View style={styles.featureText}>
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Live Results</Text>
+              <Text style={[styles.featureTitle, { color: colors.text }]}>Resultados en Vivo</Text>
               <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Access real-time race results and standings
+                Accede a resultados de carreras en tiempo real y clasificaciones del campeonato
               </Text>
             </View>
           </View>
@@ -50,9 +50,9 @@ export default function WelcomeScreen() {
               <Text style={[styles.featureIconText, { color: colors.primary }]}>⏱️</Text>
             </View>
             <View style={styles.featureText}>
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Lap Times</Text>
+              <Text style={[styles.featureTitle, { color: colors.text }]}>Tiempos de Vuelta</Text>
               <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Track your performance with detailed lap time analysis
+                Sigue tu rendimiento con un análisis detallado de tiempos de vuelta
               </Text>
             </View>
           </View>
@@ -62,9 +62,9 @@ export default function WelcomeScreen() {
               <Text style={[styles.featureIconText, { color: colors.primary }]}>🏆</Text>
             </View>
             <View style={styles.featureText}>
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Championships</Text>
+              <Text style={[styles.featureTitle, { color: colors.text }]}>Clasificación del Campeonato</Text>
               <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Follow the season standings for pilots and teams
+                Sigue las clasificaciones de la temporada para pilotos y equipos
               </Text>
             </View>
           </View>
@@ -76,16 +76,7 @@ export default function WelcomeScreen() {
           style={[styles.button, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/login')}
         >
-          <Text style={styles.buttonText}>Sign In</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton, { borderColor: colors.primary }]}
-          onPress={() => router.push('/register')}
-        >
-          <Text style={[styles.buttonText, styles.secondaryButtonText, { color: colors.primary }]}>
-            Create Account
-          </Text>
+          <Text style={styles.buttonText}>Iniciar Sesión</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -1,69 +1,212 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { Clock, ChevronDown, Filter, Plus, Check } from 'lucide-react-native';
+import { supabase, LapTime, Circuit, Pilot, Race } from '@/lib/supabase';
 
 export default function LapTimesScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('view');
-  const [selectedCircuit, setSelectedCircuit] = useState('All Circuits');
-  const [selectedSession, setSelectedSession] = useState('All Sessions');
+  const [selectedCircuit, setSelectedCircuit] = useState('all');
+  const [selectedSession, setSelectedSession] = useState('all');
   const [showCircuitDropdown, setShowCircuitDropdown] = useState(false);
   const [showSessionDropdown, setShowSessionDropdown] = useState(false);
+  const [circuits, setCircuits] = useState<Circuit[]>([]);
+  const [lapTimes, setLapTimes] = useState<LapTime[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Form state for adding lap times (for organizers)
-  const [pilotNumber, setPilotNumber] = useState('');
+  const [pilots, setPilots] = useState<Pilot[]>([]);
+  const [races, setRaces] = useState<Race[]>([]);
+  const [selectedPilot, setSelectedPilot] = useState<string | null>(null);
+  const [selectedRace, setSelectedRace] = useState<string | null>(null);
   const [lapNumber, setLapNumber] = useState('');
   const [minutes, setMinutes] = useState('');
   const [seconds, setSeconds] = useState('');
   const [milliseconds, setMilliseconds] = useState('');
-  const [formSession, setFormSession] = useState('Race 1');
+  const [formSession, setFormSession] = useState('race1');
   const [showFormSessionDropdown, setShowFormSessionDropdown] = useState(false);
+  const [showPilotDropdown, setShowPilotDropdown] = useState(false);
+  const [showRaceDropdown, setShowRaceDropdown] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
-  const circuits = ['All Circuits', 'Karting Valencia', 'Circuit de la Ribera', 'Kartodromo de Cheste', 'Karting Riba-roja'];
-  const sessions = ['All Sessions', 'Practice', 'Qualifying', 'Race 1', 'Race 2'];
-  const formSessions = ['Practice', 'Qualifying', 'Race 1', 'Race 2'];
-
-  const lapTimes = [
-    { id: 1, pilot: 'Carlos Rodríguez', number: '28', lap: 5, time: '1:02.345', improvement: '-0.123', circuit: 'Karting Valencia', session: 'Qualifying' },
-    { id: 2, pilot: 'Laura Martínez', number: '14', lap: 3, time: '1:03.567', improvement: '-0.089', circuit: 'Karting Valencia', session: 'Qualifying' },
-    { id: 3, pilot: 'Miguel Sánchez', number: '07', lap: 7, time: '1:02.789', improvement: '-0.234', circuit: 'Karting Valencia', session: 'Qualifying' },
-    { id: 4, pilot: 'Carlos Rodríguez', number: '28', lap: 2, time: '1:04.123', improvement: '-0.567', circuit: 'Karting Valencia', session: 'Race 1' },
-    { id: 5, pilot: 'Laura Martínez', number: '14', lap: 4, time: '1:03.890', improvement: '-0.102', circuit: 'Karting Valencia', session: 'Race 1' },
-    { id: 6, pilot: 'Miguel Sánchez', number: '07', lap: 6, time: '1:03.456', improvement: '-0.178', circuit: 'Karting Valencia', session: 'Race 1' },
-    { id: 7, pilot: 'Carlos Rodríguez', number: '28', lap: 3, time: '1:01.987', improvement: '-0.358', circuit: 'Circuit de la Ribera', session: 'Practice' },
-    { id: 8, pilot: 'Laura Martínez', number: '14', lap: 5, time: '1:02.345', improvement: '-0.123', circuit: 'Circuit de la Ribera', session: 'Practice' },
+  const sessions = [
+    { id: 'all', name: 'Todas las Sesiones' },
+    { id: 'practice', name: 'Práctica' },
+    { id: 'qualifying', name: 'Clasificación' },
+    { id: 'race1', name: 'Carrera 1' },
+    { id: 'race2', name: 'Carrera 2' }
+  ];
+  
+  const formSessions = [
+    { id: 'practice', name: 'Práctica' },
+    { id: 'qualifying', name: 'Clasificación' },
+    { id: 'race1', name: 'Carrera 1' },
+    { id: 'race2', name: 'Carrera 2' }
   ];
 
-  const filteredLapTimes = lapTimes.filter(lap => {
-    const circuitMatch = selectedCircuit === 'All Circuits' || lap.circuit === selectedCircuit;
-    const sessionMatch = selectedSession === 'All Sessions' || lap.session === selectedSession;
-    return circuitMatch && sessionMatch;
-  });
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // Fetch circuits
+        const { data: circuitsData, error: circuitsError } = await supabase
+          .from('circuits')
+          .select('*')
+          .order('name');
 
-  const handleAddLapTime = () => {
-    // Here you would normally submit to the database
-    // For now, just reset the form
-    setPilotNumber('');
-    setLapNumber('');
-    setMinutes('');
-    setSeconds('');
-    setMilliseconds('');
-    setFormSession('Race 1');
-    
-    // Show success message or feedback
-    alert('Lap time added successfully!');
+        if (circuitsError) {
+          throw circuitsError;
+        }
+        
+        setCircuits(circuitsData || []);
+        
+        // Fetch lap times
+        await fetchLapTimes();
+        
+        // For organizers, fetch pilots and races for the form
+        if (user?.user_metadata?.role === 'organizer') {
+          const { data: pilotsData, error: pilotsError } = await supabase
+            .from('pilots')
+            .select('*, team:teams(name)')
+            .order('number');
+
+          if (pilotsError) {
+            throw pilotsError;
+          }
+          
+          setPilots(pilotsData || []);
+          
+          const { data: racesData, error: racesError } = await supabase
+            .from('races')
+            .select('*')
+            .order('date', { ascending: false });
+
+          if (racesError) {
+            throw racesError;
+          }
+          
+          setRaces(racesData || []);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError('Error al cargar los datos');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [user]);
+
+  const fetchLapTimes = async () => {
+    try {
+      let query = supabase
+        .from('lap_times')
+        .select(`
+          *,
+          pilot:pilots(id, name, number),
+          race:races(id, name, circuit_id, circuit_name)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (selectedCircuit !== 'all') {
+        query = query.eq('race.circuit_id', selectedCircuit);
+      }
+      
+      if (selectedSession !== 'all') {
+        query = query.eq('session_type', selectedSession);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        throw error;
+      }
+      
+      setLapTimes(data || []);
+    } catch (error) {
+      console.error('Error fetching lap times:', error);
+      setError('Error al cargar los tiempos de vuelta');
+    }
+  };
+
+  useEffect(() => {
+    fetchLapTimes();
+  }, [selectedCircuit, selectedSession]);
+
+  const handleAddLapTime = async () => {
+    if (!selectedPilot || !selectedRace || !lapNumber || !minutes || !seconds || !milliseconds) {
+      setFormError('Por favor, completa todos los campos');
+      return;
+    }
+
+    try {
+      setFormLoading(true);
+      setFormError(null);
+      setFormSuccess(null);
+      
+      const time = `${minutes}:${seconds}.${milliseconds}`;
+      
+      // Calculate improvement (mock for now)
+      const improvement = `-0.${Math.floor(Math.random() * 900) + 100}`;
+      
+      const { error } = await supabase
+        .from('lap_times')
+        .insert({
+          race_id: selectedRace,
+          pilot_id: selectedPilot,
+          session_type: formSession,
+          lap_number: parseInt(lapNumber),
+          time,
+          improvement
+        });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Reset form
+      setLapNumber('');
+      setMinutes('');
+      setSeconds('');
+      setMilliseconds('');
+      
+      setFormSuccess('Tiempo de vuelta añadido correctamente');
+      
+      // Refresh lap times
+      fetchLapTimes();
+    } catch (error) {
+      console.error('Error adding lap time:', error);
+      setFormError('Error al añadir el tiempo de vuelta');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const getSessionName = (sessionType: string) => {
+    switch (sessionType) {
+      case 'practice': return 'Práctica';
+      case 'qualifying': return 'Clasificación';
+      case 'race1': return 'Carrera 1';
+      case 'race2': return 'Carrera 2';
+      default: return sessionType;
+    }
   };
 
   const isOrganizer = user?.user_metadata?.role === 'organizer';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Lap Times" showBackButton={false} />
+      <Header title="Tiempos de Vuelta" showBackButton={false} />
       
       {isOrganizer && (
         <View style={styles.tabsContainer}>
@@ -81,7 +224,7 @@ export default function LapTimesScreen() {
                 { color: activeTab === 'view' ? colors.primary : colors.textSecondary }
               ]}
             >
-              View Times
+              Ver Tiempos
             </Text>
           </TouchableOpacity>
           
@@ -99,7 +242,7 @@ export default function LapTimesScreen() {
                 { color: activeTab === 'add' ? colors.primary : colors.textSecondary }
               ]}
             >
-              Add Times
+              Añadir Tiempos
             </Text>
           </TouchableOpacity>
         </View>
@@ -110,7 +253,7 @@ export default function LapTimesScreen() {
           <View style={styles.filtersContainer}>
             <View style={styles.filterSection}>
               <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
-                <Filter size={16} color={colors.textSecondary} style={styles.filterIcon} /> Filters:
+                <Filter size={16} color={colors.textSecondary} style={styles.filterIcon} /> Filtros:
               </Text>
               
               <View style={styles.dropdownContainer}>
@@ -121,23 +264,39 @@ export default function LapTimesScreen() {
                     setShowSessionDropdown(false);
                   }}
                 >
-                  <Text style={[styles.dropdownText, { color: colors.text }]}>{selectedCircuit}</Text>
+                  <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    {selectedCircuit === 'all' 
+                      ? 'Todos los Circuitos' 
+                      : circuits.find(c => c.id === selectedCircuit)?.name || 'Seleccionar Circuito'}
+                  </Text>
                   <ChevronDown size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
                 
                 {showCircuitDropdown && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <TouchableOpacity
+                      key="all"
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedCircuit('all');
+                        setShowCircuitDropdown(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, { color: colors.text }]}>Todos los Circuitos</Text>
+                      {selectedCircuit === 'all' && <Check size={16} color={colors.primary} />}
+                    </TouchableOpacity>
+                    
                     {circuits.map((circuit) => (
                       <TouchableOpacity
-                        key={circuit}
+                        key={circuit.id}
                         style={styles.dropdownItem}
                         onPress={() => {
-                          setSelectedCircuit(circuit);
+                          setSelectedCircuit(circuit.id);
                           setShowCircuitDropdown(false);
                         }}
                       >
-                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>{circuit}</Text>
-                        {selectedCircuit === circuit && <Check size={16} color={colors.primary} />}
+                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>{circuit.name}</Text>
+                        {selectedCircuit === circuit.id && <Check size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -152,7 +311,9 @@ export default function LapTimesScreen() {
                     setShowCircuitDropdown(false);
                   }}
                 >
-                  <Text style={[styles.dropdownText, { color: colors.text }]}>{selectedSession}</Text>
+                  <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    {sessions.find(s => s.id === selectedSession)?.name || 'Seleccionar Sesión'}
+                  </Text>
                   <ChevronDown size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
                 
@@ -160,15 +321,15 @@ export default function LapTimesScreen() {
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {sessions.map((session) => (
                       <TouchableOpacity
-                        key={session}
+                        key={session.id}
                         style={styles.dropdownItem}
                         onPress={() => {
-                          setSelectedSession(session);
+                          setSelectedSession(session.id);
                           setShowSessionDropdown(false);
                         }}
                       >
-                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>{session}</Text>
-                        {selectedSession === session && <Check size={16} color={colors.primary} />}
+                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>{session.name}</Text>
+                        {selectedSession === session.id && <Check size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -178,73 +339,170 @@ export default function LapTimesScreen() {
           </View>
 
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            <View style={styles.lapTimesContainer}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.pilotHeader, { color: colors.textSecondary }]}>Pilot</Text>
-                <Text style={[styles.lapHeader, { color: colors.textSecondary }]}>Lap</Text>
-                <Text style={[styles.timeHeader, { color: colors.textSecondary }]}>Time</Text>
-                <Text style={[styles.improvementHeader, { color: colors.textSecondary }]}>Imp.</Text>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Cargando tiempos de vuelta...
+                </Text>
               </View>
-              
-              {filteredLapTimes.length > 0 ? (
-                filteredLapTimes.map((lap) => (
-                  <Card key={lap.id} style={styles.lapTimeCard}>
-                    <View style={styles.lapTimeRow}>
-                      <View style={styles.pilotContainer}>
-                        <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
-                          <Text style={[styles.pilotNumberText, { color: colors.white }]}>
-                            {lap.number}
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+              </View>
+            ) : (
+              <View style={styles.lapTimesContainer}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.pilotHeader, { color: colors.textSecondary }]}>Piloto</Text>
+                  <Text style={[styles.lapHeader, { color: colors.textSecondary }]}>Vuelta</Text>
+                  <Text style={[styles.timeHeader, { color: colors.textSecondary }]}>Tiempo</Text>
+                  <Text style={[styles.improvementHeader, { color: colors.textSecondary }]}>Mejora</Text>
+                </View>
+                
+                {lapTimes.length > 0 ? (
+                  lapTimes.map((lap) => (
+                    <Card key={lap.id} style={styles.lapTimeCard}>
+                      <View style={styles.lapTimeRow}>
+                        <View style={styles.pilotContainer}>
+                          <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
+                            <Text style={[styles.pilotNumberText, { color: colors.white }]}>
+                              {lap.pilot?.number || '00'}
+                            </Text>
+                          </View>
+                          <Text style={[styles.pilotName, { color: colors.text }]}>
+                            {lap.pilot?.name || 'Piloto Desconocido'}
                           </Text>
                         </View>
-                        <Text style={[styles.pilotName, { color: colors.text }]}>{lap.pilot}</Text>
+                        
+                        <Text style={[styles.lapNumber, { color: colors.text }]}>{lap.lap_number}</Text>
+                        
+                        <Text style={[styles.lapTime, { color: colors.text }]}>{lap.time}</Text>
+                        
+                        <Text style={[styles.improvement, { color: colors.success }]}>
+                          {lap.improvement || '-'}
+                        </Text>
                       </View>
                       
-                      <Text style={[styles.lapNumber, { color: colors.text }]}>{lap.lap}</Text>
-                      
-                      <Text style={[styles.lapTime, { color: colors.text }]}>{lap.time}</Text>
-                      
-                      <Text style={[styles.improvement, { color: colors.success }]}>
-                        {lap.improvement}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.lapTimeFooter}>
-                      <Text style={[styles.sessionInfo, { color: colors.textSecondary }]}>
-                        {lap.circuit} • {lap.session}
-                      </Text>
-                    </View>
-                  </Card>
-                ))
-              ) : (
-                <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
-                  No lap times found for the selected filters
-                </Text>
-              )}
-            </View>
+                      <View style={styles.lapTimeFooter}>
+                        <Text style={[styles.sessionInfo, { color: colors.textSecondary }]}>
+                          {lap.race?.circuit_name || 'Circuito Desconocido'} • {getSessionName(lap.session_type)}
+                        </Text>
+                      </View>
+                    </Card>
+                  ))
+                ) : (
+                  <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
+                    No se encontraron tiempos de vuelta para los filtros seleccionados
+                  </Text>
+                )}
+              </View>
+            )}
           </ScrollView>
         </>
       ) : (
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <Card style={styles.formCard}>
-            <Text style={[styles.formTitle, { color: colors.text }]}>Add New Lap Time</Text>
+            <Text style={[styles.formTitle, { color: colors.text }]}>Añadir Nuevo Tiempo de Vuelta</Text>
+            
+            {formError && (
+              <View style={[styles.formErrorContainer, { backgroundColor: colors.errorLight }]}>
+                <Text style={[styles.formErrorText, { color: colors.error }]}>{formError}</Text>
+              </View>
+            )}
+            
+            {formSuccess && (
+              <View style={[styles.formSuccessContainer, { backgroundColor: colors.success + '20' }]}>
+                <Text style={[styles.formSuccessText, { color: colors.success }]}>{formSuccess}</Text>
+              </View>
+            )}
             
             <View style={styles.formGroup}>
-              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Pilot Number</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                placeholder="Enter pilot number"
-                placeholderTextColor={colors.textSecondary}
-                value={pilotNumber}
-                onChangeText={setPilotNumber}
-                keyboardType="number-pad"
-              />
+              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Piloto</Text>
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity
+                  style={[styles.dropdown, { borderColor: colors.border }]}
+                  onPress={() => {
+                    setShowPilotDropdown(!showPilotDropdown);
+                    setShowRaceDropdown(false);
+                    setShowFormSessionDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    {selectedPilot 
+                      ? pilots.find(p => p.id === selectedPilot)?.name || 'Seleccionar Piloto'
+                      : 'Seleccionar Piloto'}
+                  </Text>
+                  <ChevronDown size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                
+                {showPilotDropdown && (
+                  <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    {pilots.map((pilot) => (
+                      <TouchableOpacity
+                        key={pilot.id}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setSelectedPilot(pilot.id);
+                          setShowPilotDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>
+                          {pilot.number} - {pilot.name}
+                        </Text>
+                        {selectedPilot === pilot.id && <Check size={16} color={colors.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
             </View>
             
             <View style={styles.formGroup}>
-              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Lap Number</Text>
+              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Carrera</Text>
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity
+                  style={[styles.dropdown, { borderColor: colors.border }]}
+                  onPress={() => {
+                    setShowRaceDropdown(!showRaceDropdown);
+                    setShowPilotDropdown(false);
+                    setShowFormSessionDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    {selectedRace 
+                      ? races.find(r => r.id === selectedRace)?.name || 'Seleccionar Carrera'
+                      : 'Seleccionar Carrera'}
+                  </Text>
+                  <ChevronDown size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                
+                {showRaceDropdown && (
+                  <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    {races.map((race) => (
+                      <TouchableOpacity
+                        key={race.id}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setSelectedRace(race.id);
+                          setShowRaceDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>
+                          {race.name} ({new Date(race.date).toLocaleDateString('es-ES')})
+                        </Text>
+                        {selectedRace === race.id && <Check size={16} color={colors.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Número de Vuelta</Text>
               <TextInput
                 style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                placeholder="Enter lap number"
+                placeholder="Número de vuelta"
                 placeholderTextColor={colors.textSecondary}
                 value={lapNumber}
                 onChangeText={setLapNumber}
@@ -253,7 +511,7 @@ export default function LapTimesScreen() {
             </View>
             
             <View style={styles.formGroup}>
-              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Lap Time</Text>
+              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Tiempo de Vuelta</Text>
               <View style={styles.timeInputContainer}>
                 <TextInput
                   style={[styles.timeInput, { borderColor: colors.border, color: colors.text }]}
@@ -288,13 +546,19 @@ export default function LapTimesScreen() {
             </View>
             
             <View style={styles.formGroup}>
-              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Session</Text>
+              <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Sesión</Text>
               <View style={styles.dropdownContainer}>
                 <TouchableOpacity
                   style={[styles.dropdown, { borderColor: colors.border }]}
-                  onPress={() => setShowFormSessionDropdown(!showFormSessionDropdown)}
+                  onPress={() => {
+                    setShowFormSessionDropdown(!showFormSessionDropdown);
+                    setShowPilotDropdown(false);
+                    setShowRaceDropdown(false);
+                  }}
                 >
-                  <Text style={[styles.dropdownText, { color: colors.text }]}>{formSession}</Text>
+                  <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    {formSessions.find(s => s.id === formSession)?.name || 'Seleccionar Sesión'}
+                  </Text>
                   <ChevronDown size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
                 
@@ -302,15 +566,15 @@ export default function LapTimesScreen() {
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {formSessions.map((session) => (
                       <TouchableOpacity
-                        key={session}
+                        key={session.id}
                         style={styles.dropdownItem}
                         onPress={() => {
-                          setFormSession(session);
+                          setFormSession(session.id);
                           setShowFormSessionDropdown(false);
                         }}
                       >
-                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>{session}</Text>
-                        {formSession === session && <Check size={16} color={colors.primary} />}
+                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>{session.name}</Text>
+                        {formSession === session.id && <Check size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -321,8 +585,13 @@ export default function LapTimesScreen() {
             <TouchableOpacity
               style={[styles.submitButton, { backgroundColor: colors.primary }]}
               onPress={handleAddLapTime}
+              disabled={formLoading}
             >
-              <Text style={[styles.submitButtonText, { color: colors.white }]}>Add Lap Time</Text>
+              {formLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.submitButtonText, { color: colors.white }]}>Añadir Tiempo de Vuelta</Text>
+              )}
             </TouchableOpacity>
           </Card>
         </ScrollView>
@@ -406,6 +675,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 4,
     zIndex: 2,
+    maxHeight: 200,
   },
   dropdownItem: {
     flexDirection: 'row',
@@ -420,6 +690,22 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
   },
   lapTimesContainer: {
     marginBottom: 24,
@@ -521,6 +807,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
+  }, formErrorContainer: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  formErrorText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  formSuccessContainer: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  formSuccessText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   formGroup: {
     marginBottom: 16,

@@ -18,7 +18,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError('Por favor, completa todos los campos');
       return;
     }
 
@@ -29,8 +29,8 @@ export default function LoginScreen() {
       await signIn(email, password);
       router.replace('/(tabs)');
     } catch (error) {
-      console.error('Login error:', error);
-      setError('Invalid email or password');
+      console.error('Error de inicio de sesión:', error);
+      setError('Correo electrónico o contraseña inválidos');
     } finally {
       setLoading(false);
     }
@@ -46,9 +46,9 @@ export default function LoginScreen() {
       </TouchableOpacity>
       
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Bienvenido de nuevo</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Sign in to continue to Karting League
+          Inicia sesión para continuar
         </Text>
         
         {error ? (
@@ -64,7 +64,7 @@ export default function LoginScreen() {
             </View>
             <TextInput
               style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              placeholder="Email"
+              placeholder="Correo electrónico"
               placeholderTextColor={colors.textSecondary}
               value={email}
               onChangeText={setEmail}
@@ -79,7 +79,7 @@ export default function LoginScreen() {
             </View>
             <TextInput
               style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              placeholder="Password"
+              placeholder="Contraseña"
               placeholderTextColor={colors.textSecondary}
               value={password}
               onChangeText={setPassword}
@@ -99,7 +99,7 @@ export default function LoginScreen() {
           
           <TouchableOpacity style={styles.forgotPassword}>
             <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
-              Forgot Password?
+              ¿Olvidaste tu contraseña?
             </Text>
           </TouchableOpacity>
           
@@ -111,7 +111,7 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
+              <Text style={styles.buttonText}>Iniciar Sesión</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -119,10 +119,10 @@ export default function LoginScreen() {
       
       <View style={styles.footer}>
         <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-          Don't have an account?
+          ¿No tienes una cuenta?
         </Text>
         <TouchableOpacity onPress={() => router.push('/register')}>
-          <Text style={[styles.footerLink, { color: colors.primary }]}>Sign Up</Text>
+          <Text style={[styles.footerLink, { color: colors.primary }]}>Regístrate</Text>
         </TouchableOpacity>
       </View>
     </View>
