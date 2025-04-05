@@ -71,12 +71,13 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: 60,
-    paddingBottom: 8,
+    height: 85,
+    paddingBottom: 25,
     paddingTop: 8,
   },
   tabBarLabel: {
     fontSize: 12,
     fontWeight: '500',
+    marginBottom: 8,
   },
 });
