@@ -1,28 +1,50 @@
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { Calendar, Flag, Clock, ChevronRight } from 'lucide-react-native';
+import { Calendar, Flag, Clock, ChevronRight, TrendingUp, Award, Target, Trophy } from 'lucide-react-native';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
-import { useEffect, useState } from 'react';
-import { supabase, Race, RaceResult } from '@/lib/supabase';
+import { LineChart, BarChart } from 'react-native-chart-kit';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { supabase, Race, RaceResult, LapTime } from '@/lib/supabase';
+
+const screenWidth = Dimensions.get('window').width;
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const [nextRace, setNextRace] = useState<Race | null>(null);
   const [recentResults, setRecentResults] = useState<RaceResult[]>([]);
+  const [pilotStats, setPilotStats] = useState<any>(null);
+  const [lapTimeData, setLapTimeData] = useState<any>(null);
+  const [positionData, setPositionData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
+      if (!user) return;
+
       try {
         setLoading(true);
+        
+        // Get pilot ID for the logged-in user
+        const { data: pilotData, error: pilotError } = await supabase
+          .from('pilot')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (pilotError) throw pilotError;
+
+        const pilotId = pilotData.id;
+
         // Fetch next race
         const { data: raceData, error: raceError } = await supabase
-          .from('races')
-          .select('*')
+          .from('race')
+          .select('*, circuits(*)')
           .gt('date', new Date().toISOString())
           .order('date', { ascending: true })
           .limit(1)
@@ -34,9 +56,9 @@ export default function HomeScreen() {
           setNextRace(raceData);
         }
 
-        // Fetch recent results
+        // Fetch recent results for the logged-in pilot
         const { data: resultsData, error: resultsError } = await supabase
-          .from('race_results')
+          .from('race_result')
           .select(`
             id,
             race_id,
@@ -47,19 +69,97 @@ export default function HomeScreen() {
               circuits (name, image_url)
             ),
             session_type,
-            position,
-            pilot_id,
-            pilots (name, number)
+            rank_position,
+            points,
+            best_lap
           `)
+          .eq('pilot_id', pilotId)
           .order('created_at', { ascending: false })
           .limit(5);
 
         if (resultsError) {
-          console.error('Error fetching recent results:', resultsError);
-          setError('Error al cargar los resultados recientes');
-        } else {
-          setRecentResults(resultsData || []);
+          throw resultsError;
         }
+        
+        setRecentResults(resultsData || []);
+
+        // Calculate pilot statistics
+        const { data: statsData, error: statsError } = await supabase
+          .from('race_results')
+          .select(`
+            rank_position,
+            points,
+            best_lap,
+            session_type
+          `)
+          .eq('pilot_id', pilotId);
+
+        if (statsError) throw statsError;
+
+        const stats = {
+          totalRaces: statsData.filter(r => r.session_type.startsWith('race')).length,
+          podiums: statsData.filter(r => r.session_type.startsWith('race') && r.rank_position <= 3).length,
+          wins: statsData.filter(r => r.session_type.startsWith('race') && r.rank_position === 1).length,
+          totalPoints: statsData.reduce((sum, r) => sum + (r.points || 0), 0),
+          bestPosition: Math.min(...statsData.filter(r => r.session_type.startsWith('race')).map(r => r.rank_position || 999)),
+          bestLap: statsData.reduce((best, r) => {
+            if (!r.best_lap) return best;
+            return !best || r.best_lap < best ? r.best_lap : best;
+          }, null),
+        };
+
+        setPilotStats(stats);
+
+        // Fetch lap time progression
+        const { data: lapTimesData, error: lapTimesError } = await supabase
+          .from('lap_times')
+          .select(`
+            time,
+            race_id,
+            races (date)
+          `)
+          .eq('pilot_id', pilotId)
+          .eq('session_type', 'race1')
+          .order('races.date', { ascending: true });
+
+        if (lapTimesError) throw lapTimesError;
+
+        // Process lap times for chart
+        const processedLapTimes = lapTimesData.map(lt => ({
+          time: lt.time,
+          date: lt.races.date
+        }));
+
+        setLapTimeData({
+          labels: processedLapTimes.map(lt => format(new Date(lt.date), 'MMM d', { locale: es })),
+          datasets: [{
+            data: processedLapTimes.map(lt => {
+              const [mins, secs] = lt.time.split(':');
+              return parseFloat(mins) * 60 + parseFloat(secs);
+            })
+          }]
+        });
+
+        // Fetch position progression
+        const { data: positionsData, error: positionsError } = await supabase
+          .from('race_results')
+          .select(`
+            rank_position,
+            races (date)
+          `)
+          .eq('pilot_id', pilotId)
+          .eq('session_type', 'race1')
+          .order('races.date', { ascending: true });
+
+        if (positionsError) throw positionsError;
+
+        setPositionData({
+          labels: positionsData.map(p => format(new Date(p.races.date), 'MMM d', { locale: es })),
+          datasets: [{
+            data: positionsData.map(p => p.rank_position || 0)
+          }]
+        });
+
       } catch (error) {
         console.error('Error in data fetching:', error);
         setError('Error al cargar los datos');
@@ -69,13 +169,41 @@ export default function HomeScreen() {
     }
 
     fetchData();
-  }, []);
+  }, [user]);
+
+  const chartConfig = {
+    backgroundColor: colors.card,
+    backgroundGradientFrom: colors.card,
+    backgroundGradientTo: colors.card,
+    decimalPlaces: 2,
+    color: (opacity = 1) => `rgba(${parseInt(colors.primary.slice(1, 3), 16)}, ${parseInt(colors.primary.slice(3, 5), 16)}, ${parseInt(colors.primary.slice(5, 7), 16)}, ${opacity})`,
+    labelColor: (opacity = 1) => colors.textSecondary,
+    style: {
+      borderRadius: 16,
+    },
+    propsForDots: {
+      r: "4",
+      strokeWidth: "2",
+      stroke: colors.primary
+    },
+    propsForLabels: {
+      fontSize: 10,
+    },
+    propsForVerticalLabels: {
+      fontSize: 10,
+      rotation: 0,
+    },
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Karting League" showBackButton={false} />
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {user && (
           <View style={styles.welcomeSection}>
             <Text style={[styles.welcomeText, { color: colors.text }]}>
@@ -109,47 +237,127 @@ export default function HomeScreen() {
                 
                 <View style={styles.nextRaceContent}>
                   <Image 
-                    source={{ uri: nextRace.circuit_image || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
+                    source={{ uri: nextRace?.circuits?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
                     style={styles.circuitImage} 
                   />
                   <View style={styles.raceInfo}>
                     <Text style={[styles.raceName, { color: colors.text }]}>{nextRace.name}</Text>
                     <Text style={[styles.raceCircuit, { color: colors.textSecondary }]}>
-                      {nextRace.circuit_name}
+                      {nextRace?.circuit?.name}
                     </Text>
                     <Text style={[styles.raceDate, { color: colors.primary }]}>
-                      {new Date(nextRace.date).toLocaleDateString('es-ES', {
-                        weekday: 'long',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
+                      {format(new Date(nextRace.date), "EEEE d 'de' MMMM", { locale: es })}
                     </Text>
                   </View>
                 </View>
               </Card>
             )}
 
-            <View style={styles.statsSection}>
-              <Card style={styles.statCard}>
-                <View style={styles.statContent}>
-                  <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                    <Flag size={20} color={colors.primary} />
+            {pilotStats && (
+              <Card style={styles.statsCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Estadísticas Generales</Text>
+                  <Award size={20} color={colors.primary} />
+                </View>
+
+                <View style={styles.statsGrid}>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Flag size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalRaces}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
                   </View>
-                  <Text style={[styles.statValue, { color: colors.text }]}>12</Text>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Award size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podios</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Trophy size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Victorias</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Target size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Pos</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <Clock size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestLap || '-'}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <TrendingUp size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalPoints}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
+                  </View>
                 </View>
               </Card>
-              
-              <Card style={styles.statCard}>
-                <View style={styles.statContent}>
-                  <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                    <Clock size={20} color={colors.primary} />
-                  </View>
-                  <Text style={[styles.statValue, { color: colors.text }]}>1:22.456</Text>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+            )}
+
+            {lapTimeData && (
+              <Card style={styles.chartCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión de Tiempos</Text>
+                  <Clock size={20} color={colors.primary} />
                 </View>
+                
+                <LineChart
+                  data={lapTimeData}
+                  width={screenWidth - 64}
+                  height={220}
+                  chartConfig={chartConfig}
+                  bezier
+                  style={styles.chart}
+                  yAxisSuffix="s"
+                  yAxisLabel=""
+                  formatYLabel={(value) => {
+                    const minutes = Math.floor(value / 60);
+                    const seconds = (value % 60).toFixed(3);
+                    return `${minutes}:${seconds.padStart(6, '0')}`;
+                  }}
+                />
               </Card>
-            </View>
+            )}
+
+            {positionData && (
+              <Card style={styles.chartCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Posiciones por Carrera</Text>
+                  <Target size={20} color={colors.primary} />
+                </View>
+                
+                <BarChart
+                  data={positionData}
+                  width={screenWidth - 64}
+                  height={220}
+                  chartConfig={chartConfig}
+                  style={styles.chart}
+                  showValuesOnTopOfBars
+                  fromZero
+                  segments={4}
+                  yAxisLabel=""
+                  yAxisSuffix=""
+                />
+              </Card>
+            )}
 
             <View style={styles.recentResultsSection}>
               <View style={styles.sectionHeader}>
@@ -161,8 +369,8 @@ export default function HomeScreen() {
               </View>
 
               {recentResults.length > 0 ? (
-                recentResults.map((result, index) => (
-                  <Card key={result.id || index} style={styles.resultCard}>
+                recentResults.map((result) => (
+                  <Card key={result.id} style={styles.resultCard}>
                     <View style={styles.resultHeader}>
                       <Text style={[styles.resultCircuit, { color: colors.textSecondary }]}>
                         {result.races?.circuits?.name || 'Circuito Desconocido'}
@@ -176,27 +384,33 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                     <View style={styles.resultContent}>
-                      <View style={styles.pilotInfo}>
-                        <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
-                          <Text style={[styles.pilotNumberText, { color: colors.white }]}>
-                            {result.pilots?.number || '00'}
+                      <View style={styles.resultStats}>
+                        <View style={styles.resultStat}>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Posición</Text>
+                          <Text style={[styles.resultStatValue, { color: colors.text }]}>
+                            {result.rank_position || '-'}
                           </Text>
                         </View>
-                        <Text style={[styles.pilotName, { color: colors.text }]}>
-                          {result.pilots?.name || 'Piloto Desconocido'}
-                        </Text>
-                      </View>
-                      <View style={styles.positionContainer}>
-                        <Text style={[styles.position, { color: colors.text }]}>
-                          {result.position || '-'}
-                        </Text>
-                        <Text style={[styles.positionLabel, { color: colors.textSecondary }]}>POS</Text>
+                        <View style={styles.resultStat}>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Puntos</Text>
+                          <Text style={[styles.resultStatValue, { color: colors.text }]}>
+                            {result.points || '0'}
+                          </Text>
+                        </View>
+                        <View style={styles.resultStat}>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+                          <Text style={[styles.resultStatValue, { color: colors.text }]}>
+                            {result.best_lap || '-'}
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   </Card>
                 ))
               ) : (
-                <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>No hay resultados recientes disponibles</Text>
+                <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
+                  No hay resultados recientes disponibles
+                </Text>
               )}
             </View>
           </>
@@ -212,7 +426,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Extra padding for iOS
   },
   welcomeSection: {
     marginTop: 16,
@@ -282,18 +499,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  statsSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  statsCard: {
     marginBottom: 24,
   },
-  statCard: {
-    flex: 1,
-    marginHorizontal: 4,
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  statContent: {
+  statItem: {
+    width: '30%',
     alignItems: 'center',
-    padding: 12,
+    marginBottom: 16,
   },
   statIconContainer: {
     width: 40,
@@ -309,7 +526,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
+  },
+  chartCard: {
+    marginBottom: 24,
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 16,
+    alignSelf: 'center',
   },
   recentResultsSection: {
     marginBottom: 24,
@@ -339,7 +564,7 @@ const styles = StyleSheet.create({
   resultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   resultCircuit: {
     fontSize: 14,
@@ -349,39 +574,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   resultContent: {
+    marginTop: 8,
+  },
+  resultStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  resultStat: {
     alignItems: 'center',
   },
-  pilotInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pilotNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  pilotNumberText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  pilotName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  positionContainer: {
-    alignItems: 'center',
-  },
-  position: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  positionLabel: {
+  resultStatLabel: {
     fontSize: 12,
+    marginBottom: 4,
+  },
+  resultStatValue: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   noResultsText: {
     textAlign: 'center',

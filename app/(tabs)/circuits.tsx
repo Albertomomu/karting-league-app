@@ -18,7 +18,7 @@ export default function CircuitsScreen() {
       try {
         setLoading(true);
         const { data, error } = await supabase
-          .from('circuits')
+          .from('circuit')
           .select('*')
           .order('name');
 
@@ -43,9 +43,9 @@ export default function CircuitsScreen() {
       <Header title="Circuitos" showBackButton={false} />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Circuitos de Valencia</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Circuitos</Text>
         <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-          Explora los circuitos de karting en la región de Valencia
+          Explora los circuitos de karting en los que la Karting League ha realizado carreras:
         </Text>
         
         {loading ? (
@@ -104,7 +104,7 @@ export default function CircuitsScreen() {
                     </View>
                     
                     <View style={styles.statItem}>
-                      <Text style={[styles.statValue, { color: colors.text }]}>{circuit.record_lap || '-'}</Text>
+                      <Text style={[styles.statValue, { color: colors.text }]}>{circuit.record_lap_time || '-'}</Text>
                       <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Récord</Text>
                     </View>
                   </View>
@@ -118,7 +118,7 @@ export default function CircuitsScreen() {
                           Récord por:
                         </Text>
                         <Text style={[styles.recordHolderName, { color: colors.text }]}>
-                          {circuit.record_holder || 'No establecido'}
+                          {circuit.record_lap_pilot || 'No establecido'}
                         </Text>
                       </View>
                       
@@ -193,8 +193,7 @@ const styles = StyleSheet.create({
   circuitImage: {
     width: '100%',
     height: 160,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderRadius: 12,
   },
   circuitInfo: {
     padding: 16,
