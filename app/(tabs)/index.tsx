@@ -30,7 +30,7 @@ export default function HomeScreen() {
       try {
         setLoading(true);
         
-        // Get pilot ID for the logged-in user
+        // Obtener ID del piloto
         const { data: pilotData, error: pilotError } = await supabase
           .from('pilot')
           .select('id')
@@ -38,13 +38,12 @@ export default function HomeScreen() {
           .single();
 
         if (pilotError) throw pilotError;
-
         const pilotId = pilotData.id;
 
-        // Fetch next race
+        // Consulta corregida: Próxima carrera
         const { data: raceData, error: raceError } = await supabase
           .from('race')
-          .select('*, circuits(*)')
+          .select('*, circuit(*)')
           .gt('date', new Date().toISOString())
           .order('date', { ascending: true })
           .limit(1)
@@ -56,20 +55,20 @@ export default function HomeScreen() {
           setNextRace(raceData);
         }
 
-        // Fetch recent results for the logged-in pilot
+        // Resultados recientes
         const { data: resultsData, error: resultsError } = await supabase
           .from('race_result')
           .select(`
             id,
             race_id,
-            races (
+            race (
               name,
               circuit_id,
               date,
-              circuits (name, image_url)
+              circuit (name, image_url)
             ),
-            session_type,
-            rank_position,
+            session_id,
+            race_position,
             points,
             best_lap
           `)
@@ -77,57 +76,52 @@ export default function HomeScreen() {
           .order('created_at', { ascending: false })
           .limit(5);
 
-        if (resultsError) {
-          throw resultsError;
-        }
-        
+        if (resultsError) throw resultsError;
         setRecentResults(resultsData || []);
 
-        // Calculate pilot statistics
+        // Estadísticas del piloto
         const { data: statsData, error: statsError } = await supabase
-          .from('race_results')
+          .from('race_result')
           .select(`
-            rank_position,
+            race_position,
             points,
             best_lap,
-            session_type
+            session_id
           `)
           .eq('pilot_id', pilotId);
 
         if (statsError) throw statsError;
 
         const stats = {
-          totalRaces: statsData.filter(r => r.session_type.startsWith('race')).length,
-          podiums: statsData.filter(r => r.session_type.startsWith('race') && r.rank_position <= 3).length,
-          wins: statsData.filter(r => r.session_type.startsWith('race') && r.rank_position === 1).length,
+          totalRaces: statsData.filter(r => r.session_id.startsWith('race')).length,
+          podiums: statsData.filter(r => r.session_id.startsWith('race') && r.race_position <= 3).length,
+          wins: statsData.filter(r => r.session_id.startsWith('race') && r.race_position === 1).length,
           totalPoints: statsData.reduce((sum, r) => sum + (r.points || 0), 0),
-          bestPosition: Math.min(...statsData.filter(r => r.session_type.startsWith('race')).map(r => r.rank_position || 999)),
+          bestPosition: Math.min(...statsData.filter(r => r.session_id.startsWith('race')).map(r => r.race_position || 999)),
           bestLap: statsData.reduce((best, r) => {
             if (!r.best_lap) return best;
             return !best || r.best_lap < best ? r.best_lap : best;
           }, null),
         };
-
         setPilotStats(stats);
 
-        // Fetch lap time progression
+        // Progresión de tiempos (consulta corregida)
         const { data: lapTimesData, error: lapTimesError } = await supabase
-          .from('lap_times')
+          .from('lap_time')
           .select(`
             time,
             race_id,
-            races (date)
+            race (date)
           `)
           .eq('pilot_id', pilotId)
-          .eq('session_type', 'race1')
-          .order('races.date', { ascending: true });
+          .eq('session_id', 'race1')
+          .order('date', { foreignTable: 'race', ascending: true });
 
         if (lapTimesError) throw lapTimesError;
 
-        // Process lap times for chart
         const processedLapTimes = lapTimesData.map(lt => ({
           time: lt.time,
-          date: lt.races.date
+          date: lt.race.date
         }));
 
         setLapTimeData({
@@ -140,28 +134,28 @@ export default function HomeScreen() {
           }]
         });
 
-        // Fetch position progression
+        // Progresión de posiciones (consulta corregida)
         const { data: positionsData, error: positionsError } = await supabase
-          .from('race_results')
+          .from('race_result')
           .select(`
-            rank_position,
-            races (date)
+            race_position,
+            race (date)
           `)
           .eq('pilot_id', pilotId)
-          .eq('session_type', 'race1')
-          .order('races.date', { ascending: true });
+          .eq('session_id', 'race1')
+          .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
 
         setPositionData({
-          labels: positionsData.map(p => format(new Date(p.races.date), 'MMM d', { locale: es })),
+          labels: positionsData.map(p => format(new Date(p.race.date), 'MMM d', { locale: es })),
           datasets: [{
-            data: positionsData.map(p => p.rank_position || 0)
+            data: positionsData.map(p => p.race_position || 0)
           }]
         });
 
       } catch (error) {
-        console.error('Error in data fetching:', error);
+        console.error('Error en la carga de datos:', error);
         setError('Error al cargar los datos');
       } finally {
         setLoading(false);
@@ -237,7 +231,7 @@ export default function HomeScreen() {
                 
                 <View style={styles.nextRaceContent}>
                   <Image 
-                    source={{ uri: nextRace?.circuits?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
+                    source={{ uri: nextRace?.circuit?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
                     style={styles.circuitImage} 
                   />
                   <View style={styles.raceInfo}>
@@ -373,14 +367,14 @@ export default function HomeScreen() {
                   <Card key={result.id} style={styles.resultCard}>
                     <View style={styles.resultHeader}>
                       <Text style={[styles.resultCircuit, { color: colors.textSecondary }]}>
-                        {result.races?.circuits?.name || 'Circuito Desconocido'}
+                        {result.race?.circuit?.name || 'Circuito Desconocido'}
                       </Text>
                       <Text style={[styles.resultSession, { color: colors.primary }]}>
-                        {result.session_type === 'practice' ? 'Práctica' : 
-                         result.session_type === 'qualifying' ? 'Clasificación' :
-                         result.session_type === 'race1' ? 'Carrera 1' :
-                         result.session_type === 'race2' ? 'Carrera 2' : 
-                         result.session_type}
+                        {result.session_id === 'practice' ? 'Práctica' : 
+                         result.session_id === 'qualifying' ? 'Clasificación' :
+                         result.session_id === 'race1' ? 'Carrera 1' :
+                         result.session_id === 'race2' ? 'Carrera 2' : 
+                         result.session_id}
                       </Text>
                     </View>
                     <View style={styles.resultContent}>
@@ -388,7 +382,7 @@ export default function HomeScreen() {
                         <View style={styles.resultStat}>
                           <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Posición</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
-                            {result.rank_position || '-'}
+                            {result.race_position || '-'}
                           </Text>
                         </View>
                         <View style={styles.resultStat}>
@@ -429,7 +423,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Extra padding for iOS
+    paddingBottom: Platform.OS === 'ios' ? 100 : 80,
   },
   welcomeSection: {
     marginTop: 16,
