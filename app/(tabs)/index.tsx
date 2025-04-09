@@ -114,7 +114,6 @@ export default function HomeScreen() {
             race (date)
           `)
           .eq('pilot_id', pilotId)
-          .eq('session_id', 'race1')
           .order('date', { foreignTable: 'race', ascending: true });
 
         if (lapTimesError) throw lapTimesError;
@@ -142,7 +141,6 @@ export default function HomeScreen() {
             race (date)
           `)
           .eq('pilot_id', pilotId)
-          .eq('session_id', 'race1')
           .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
