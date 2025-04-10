@@ -23,7 +23,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Inicio',
           tabBarIcon: ({ color, size }) => (
             <Home size={size} color={color} />
           ),
@@ -32,7 +32,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="standings"
         options={{
-          title: 'Standings',
+          title: 'Clasificación',
           tabBarIcon: ({ color, size }) => (
             <Trophy size={size} color={color} />
           ),
@@ -41,25 +41,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="circuits"
         options={{
-          title: 'Circuits',
+          title: 'Circuitos',
           tabBarIcon: ({ color, size }) => (
             <MapPin size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="lap-times"
-        options={{
-          title: 'Lap Times',
-          tabBarIcon: ({ color, size }) => (
-            <Clock size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Perfil',
           tabBarIcon: ({ color, size }) => (
             <User size={size} color={color} />
           ),
