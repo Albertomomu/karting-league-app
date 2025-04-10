@@ -771,7 +771,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -30, // Ajusta esta posición según necesites
     width: 120,
-    backgroundColor: colors.card,
     padding: 4,
     borderRadius: 4,
     shadowColor: '#000',
