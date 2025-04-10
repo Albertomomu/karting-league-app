@@ -116,7 +116,7 @@ export default function StandingsScreen() {
           id: team.id,
           name: team.name,
           points: team.pilots?.reduce((sum: number, pilot: any) => {
-            return sum + (pilot.points?.reduce((s: number, r: any) => s + (r.points || 0), 0) || 0);
+            return sum + (pilot.race_result?.reduce((s: number, r: any) => s + (r.points || 0), 0) || 0);
           }, 0) || 0,
           pilots: team.pilots?.map((p: any) => p.name).join(', ') || ''
         })) || [];
@@ -202,13 +202,7 @@ export default function StandingsScreen() {
                   </Text>
                 </View>
               </View>
-
-              <View style={[styles.pilotCell, { flex: 2 }]}>
-                <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.pilotNumberText, { color: colors.white }]}>
-                    {pilot.number}
-                  </Text>
-                </View>
+              <View style={[styles.pilotCell, { flex: 1 }]}>
                 <Text style={[styles.pilotName, { color: colors.text }]} numberOfLines={1}>
                   {pilot.name}
                 </Text>
@@ -504,7 +498,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   positionCell: {
-    alignItems: 'center',
+    alignItems: 'left',
   },
   positionBadge: {
     width: 28,
