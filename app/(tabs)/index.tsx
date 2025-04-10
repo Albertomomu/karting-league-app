@@ -397,11 +397,7 @@ export default function HomeScreen() {
                         {result.race?.circuit?.name || 'Unknown Circuit'}
                       </Text>
                       <Text style={[styles.resultSession, { color: colors.primary }]}>
-                        {result.session_id === 'practice' ? 'Practice' : 
-                         result.session_id === 'qualifying' ? 'Qualifying' :
-                         result.session_id === 'race1' ? 'Race 1' :
-                         result.session_id === 'race2' ? 'Race 2' : 
-                         result.session_id}
+                        {result.race?.date}
                       </Text>
                     </View>
                     <View style={styles.resultContent}>
