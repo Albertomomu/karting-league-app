@@ -29,84 +29,73 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // Database types
+
 export type Circuit = {
   id: string;
   name: string;
   location: string;
-  length: string;
+  length: number;
   turns: number;
-  record_lap?: string;
-  record_holder?: string;
-  image_url?: string;
-  description?: string;
-  created_at?: string;
-}
+  record_lap: string | null;
+  record_holder: string | null;
+  image_url: string | null;
+  description: string | null;
+  created_at: string;
+};
 
 export type Race = {
   id: string;
   name: string;
-  season_id?: string;
-  circuit_id?: string;
+  season_id: string | null;
+  circuit_id: string | null;
   date: string;
-  circuit_name?: string;
-  circuit_image?: string;
-  created_at?: string;
-}
-
-export type Pilot = {
-  id: string;
-  user_id?: string;
-  name: string;
-  number: string;
-  team_id?: string;
-  avatar_url?: string;
-  created_at?: string;
-  team?: Team;
-}
+  created_at: string;
+  circuit?: Circuit;
+};
 
 export type Team = {
   id: string;
   name: string;
-  logo_url?: string;
-  created_at?: string;
-}
+  logo_url: string | null;
+  created_at: string;
+};
+
+export type Pilot = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  number: number;
+  team_id: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  team?: Team;
+};
 
 export type RaceResult = {
   id: string;
   race_id: string;
   pilot_id: string;
-  session_type: string;
-  position?: number;
-  points?: number;
-  best_lap?: string;
-  created_at?: string;
-  races?: {
-    name?: string;
-    circuit_id?: string;
-    date?: string;
-    circuits?: {
-      name?: string;
-      image_url?: string;
-    }
-  };
-  pilots?: {
-    name?: string;
-    number?: string;
-  };
-}
+  session_id: number;
+  race_position: number | null;
+  points: number | null;
+  best_lap: string | null;
+  created_at: string;
+  pilot?: Pilot;
+  race?: Race;
+};
 
 export type LapTime = {
   id: string;
   race_id: string;
   pilot_id: string;
-  session_type: string;
+  session_id: 'qualifying' | 'race';
   lap_number: number;
   time: string;
-  improvement?: string;
-  created_at?: string;
+  improvement: string | null;
+  created_at: string;
   pilot?: Pilot;
   race?: Race;
-}
+};
 
 export type Season = {
   id: string;
@@ -114,22 +103,22 @@ export type Season = {
   start_date: string;
   end_date: string;
   is_active: boolean;
-  created_at?: string;
-}
+  created_at: string;
+};
 
 export type PilotStanding = {
   pilot_id: string;
   pilot_name: string;
-  pilot_number: string;
+  pilot_number: number;
   team_name: string;
   total_points: number;
   position: number;
-}
+};
 
 export type TeamStanding = {
   team_id: string;
   team_name: string;
   total_points: number;
   position: number;
-  pilots_list: string;
-}
+  pilots_list: string[];
+};

@@ -8,13 +8,14 @@ import Card from '@/components/Card';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { supabase, Race, RaceResult, LapTime } from '@/lib/supabase';
+import { supabase, Race, RaceResult, LapTime, Pilot } from '@/lib/supabase';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const [pilot, setPilot] = useState<Pilot | null>(null);
   const [nextRace, setNextRace] = useState<Race | null>(null);
   const [recentResults, setRecentResults] = useState<RaceResult[]>([]);
   const [pilotStats, setPilotStats] = useState<any>(null);
@@ -29,18 +30,24 @@ export default function HomeScreen() {
 
       try {
         setLoading(true);
+        console.log('Starting data fetch for user:', user.id);
         
-        // Obtener ID del piloto
+        // Get pilot ID for current user
+        console.log('Fetching pilot data...');
         const { data: pilotData, error: pilotError } = await supabase
           .from('pilot')
-          .select('id')
+          .select('*')
           .eq('user_id', user.id)
           .single();
 
         if (pilotError) throw pilotError;
+        console.log('Pilot data:', pilotData);
+        setPilot(pilotData);
         const pilotId = pilotData.id;
+        console.log('Pilot ID found:', pilotId);
 
-        // Consulta corregida: Próxima carrera
+        // Fetch next upcoming race
+        console.log('Fetching next race...');
         const { data: raceData, error: raceError } = await supabase
           .from('race')
           .select('*, circuit(*)')
@@ -53,9 +60,11 @@ export default function HomeScreen() {
           console.error('Error fetching next race:', raceError);
         } else {
           setNextRace(raceData);
+          console.log('Next race data:', raceData);
         }
 
-        // Resultados recientes
+        // Fetch recent race results for the pilot
+        console.log('Fetching recent results...');
         const { data: resultsData, error: resultsError } = await supabase
           .from('race_result')
           .select(`
@@ -78,8 +87,10 @@ export default function HomeScreen() {
 
         if (resultsError) throw resultsError;
         setRecentResults(resultsData || []);
+        console.log('Recent results:', resultsData);
 
-        // Estadísticas del piloto
+        // Calculate pilot statistics
+        console.log('Calculating pilot stats...');
         const { data: statsData, error: statsError } = await supabase
           .from('race_result')
           .select(`
@@ -91,6 +102,7 @@ export default function HomeScreen() {
           .eq('pilot_id', pilotId);
 
         if (statsError) throw statsError;
+        console.log('Raw stats data:', statsData);
 
         const stats = {
           totalRaces: statsData.filter(r => r.session_id.startsWith('race')).length,
@@ -104,8 +116,10 @@ export default function HomeScreen() {
           }, null),
         };
         setPilotStats(stats);
+        console.log('Calculated stats:', stats);
 
-        // Progresión de tiempos (consulta corregida)
+        // Fetch lap time progression data
+        console.log('Fetching lap time data...');
         const { data: lapTimesData, error: lapTimesError } = await supabase
           .from('lap_time')
           .select(`
@@ -117,6 +131,7 @@ export default function HomeScreen() {
           .order('date', { foreignTable: 'race', ascending: true });
 
         if (lapTimesError) throw lapTimesError;
+        console.log('Raw lap time data:', lapTimesData);
 
         const processedLapTimes = lapTimesData.map(lt => ({
           time: lt.time,
@@ -132,8 +147,10 @@ export default function HomeScreen() {
             })
           }]
         });
+        console.log('Processed lap time data:', lapTimeData);
 
-        // Progresión de posiciones (consulta corregida)
+        // Fetch position progression data
+        console.log('Fetching position data...');
         const { data: positionsData, error: positionsError } = await supabase
           .from('race_result')
           .select(`
@@ -144,6 +161,7 @@ export default function HomeScreen() {
           .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
+        console.log('Raw position data:', positionsData);
 
         setPositionData({
           labels: positionsData.map(p => format(new Date(p.race.date), 'MMM d', { locale: es })),
@@ -151,12 +169,14 @@ export default function HomeScreen() {
             data: positionsData.map(p => p.race_position || 0)
           }]
         });
+        console.log('Processed position data:', positionData);
 
       } catch (error) {
-        console.error('Error en la carga de datos:', error);
-        setError('Error al cargar los datos');
+        console.error('Error in data fetching:', error);
+        setError('Error loading data');
       } finally {
         setLoading(false);
+        console.log('Data loading complete');
       }
     }
 
@@ -199,7 +219,7 @@ export default function HomeScreen() {
         {user && (
           <View style={styles.welcomeSection}>
             <Text style={[styles.welcomeText, { color: colors.text }]}>
-              ¡Bienvenido, {user.user_metadata?.name || 'Piloto'}!
+              Bienvenido, {pilot?.name || 'Pilot'}!
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Mantente al día con la información más reciente
@@ -211,7 +231,7 @@ export default function HomeScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-              Cargando datos...
+              Cargando...
             </Text>
           </View>
         ) : error ? (
@@ -223,7 +243,7 @@ export default function HomeScreen() {
             {nextRace && (
               <Card style={styles.nextRaceCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima Carrera</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima carrera</Text>
                   <Calendar size={20} color={colors.primary} />
                 </View>
                 
@@ -235,10 +255,11 @@ export default function HomeScreen() {
                   <View style={styles.raceInfo}>
                     <Text style={[styles.raceName, { color: colors.text }]}>{nextRace.name}</Text>
                     <Text style={[styles.raceCircuit, { color: colors.textSecondary }]}>
-                      {nextRace?.circuit?.name}
+                      Circuito: {nextRace?.circuit?.name}
                     </Text>
                     <Text style={[styles.raceDate, { color: colors.primary }]}>
-                      {format(new Date(nextRace.date), "EEEE d 'de' MMMM", { locale: es })}
+                      Fecha: {format(new Date(nextRace.date), "EEEE d 'de' MMMM", { locale: es })
+                        .replace(/\b\w/g, l => l.toUpperCase())}
                     </Text>
                   </View>
                 </View>
@@ -248,7 +269,7 @@ export default function HomeScreen() {
             {pilotStats && (
               <Card style={styles.statsCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Estadísticas Generales</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Estadísticas generales</Text>
                   <Award size={20} color={colors.primary} />
                 </View>
 
@@ -266,7 +287,7 @@ export default function HomeScreen() {
                       <Award size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podios</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podiums</Text>
                   </View>
                   
                   <View style={styles.statItem}>
@@ -282,7 +303,7 @@ export default function HomeScreen() {
                       <Target size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Pos</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor posición</Text>
                   </View>
                   
                   <View style={styles.statItem}>
@@ -290,7 +311,7 @@ export default function HomeScreen() {
                       <Clock size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestLap || '-'}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor tiempo</Text>
                   </View>
                   
                   <View style={styles.statItem}>
@@ -307,7 +328,7 @@ export default function HomeScreen() {
             {lapTimeData && (
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión de Tiempos</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión de tiempo por vuelta</Text>
                   <Clock size={20} color={colors.primary} />
                 </View>
                 
@@ -320,9 +341,10 @@ export default function HomeScreen() {
                   style={styles.chart}
                   yAxisSuffix="s"
                   yAxisLabel=""
-                  formatYLabel={(value) => {
-                    const minutes = Math.floor(value / 60);
-                    const seconds = (value % 60).toFixed(3);
+                  formatYLabel={(value: string) => {
+                    const time = parseFloat(value);
+                    const minutes = Math.floor(time / 60);
+                    const seconds = (time % 60).toFixed(3);
                     return `${minutes}:${seconds.padStart(6, '0')}`;
                   }}
                 />
@@ -332,7 +354,7 @@ export default function HomeScreen() {
             {positionData && (
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Posiciones por Carrera</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Race Positions</Text>
                   <Target size={20} color={colors.primary} />
                 </View>
                 
@@ -353,9 +375,9 @@ export default function HomeScreen() {
 
             <View style={styles.recentResultsSection}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Resultados Recientes</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Results</Text>
                 <TouchableOpacity style={styles.viewAllButton}>
-                  <Text style={[styles.viewAllText, { color: colors.primary }]}>Ver Todos</Text>
+                  <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
                   <ChevronRight size={16} color={colors.primary} />
                 </TouchableOpacity>
               </View>
@@ -365,32 +387,32 @@ export default function HomeScreen() {
                   <Card key={result.id} style={styles.resultCard}>
                     <View style={styles.resultHeader}>
                       <Text style={[styles.resultCircuit, { color: colors.textSecondary }]}>
-                        {result.race?.circuit?.name || 'Circuito Desconocido'}
+                        {result.race?.circuit?.name || 'Unknown Circuit'}
                       </Text>
                       <Text style={[styles.resultSession, { color: colors.primary }]}>
-                        {result.session_id === 'practice' ? 'Práctica' : 
-                         result.session_id === 'qualifying' ? 'Clasificación' :
-                         result.session_id === 'race1' ? 'Carrera 1' :
-                         result.session_id === 'race2' ? 'Carrera 2' : 
+                        {result.session_id === 'practice' ? 'Practice' : 
+                         result.session_id === 'qualifying' ? 'Qualifying' :
+                         result.session_id === 'race1' ? 'Race 1' :
+                         result.session_id === 'race2' ? 'Race 2' : 
                          result.session_id}
                       </Text>
                     </View>
                     <View style={styles.resultContent}>
                       <View style={styles.resultStats}>
                         <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Posición</Text>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Position</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
                             {result.race_position || '-'}
                           </Text>
                         </View>
                         <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Puntos</Text>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Points</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
                             {result.points || '0'}
                           </Text>
                         </View>
                         <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Best Lap</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
                             {result.best_lap || '-'}
                           </Text>
@@ -401,7 +423,7 @@ export default function HomeScreen() {
                 ))
               ) : (
                 <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
-                  No hay resultados recientes disponibles
+                  No recent results available
                 </Text>
               )}
             </View>
