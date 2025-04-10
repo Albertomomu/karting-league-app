@@ -100,24 +100,33 @@ export default function HomeScreen() {
         };
         setPilotStats(stats);
 
-        // Fetch lap time progression data
+        // Fetching lap times
         const { data: lapTimesData, error: lapTimesError } = await supabase
           .from('lap_time')
           .select(`
             time,
-            race_id,
-            race (date)
+            race (
+              date
+            )
           `)
-          .eq('pilot_id', pilotId)
-          .order('date', { foreignTable: 'race', ascending: true });
+          .eq('pilot_id', pilotId);
 
-        if (lapTimesError) throw lapTimesError;
+        // Type for response
+        type SimpleLapTime = {
+          time: string;
+          race: { date: string } | null;
+        };
 
-        const processedLapTimes = lapTimesData.map(lt => ({
-          time: lt.time,
-          date: lt.race.date
-        }));
+        const lapTimes = lapTimesData as unknown as SimpleLapTime[];
 
+        const processedLapTimes = lapTimes
+          .filter(lt => lt.race !== null)
+          .map(lt => ({
+            time: lt.time,
+            date: lt.race!.date
+          }));
+      
+        // Set chart data
         setLapTimeData({
           labels: processedLapTimes.map(lt => format(new Date(lt.date), 'MMM d', { locale: es })),
           datasets: [{
@@ -126,24 +135,41 @@ export default function HomeScreen() {
               return parseFloat(mins) * 60 + parseFloat(secs);
             })
           }]
-        });
+        });      
 
         // Fetch position progression data
         const { data: positionsData, error: positionsError } = await supabase
-          .from('race_result')
-          .select(`
-            race_position,
-            race (date)
-          `)
-          .eq('pilot_id', pilotId)
-          .order('date', { foreignTable: 'race', ascending: true });
+        .from('race_result')
+        .select(`
+          race_position,
+          race (
+            date
+          )
+        `)
+        .eq('pilot_id', pilotId)
+        .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
 
+        // Type for response
+        type SimpleRaceResult = {
+        race_position: number | null;
+        race: { date: string } | null;
+        };
+
+        const positions = positionsData as unknown as SimpleRaceResult[];
+
+        const validPositions = positions
+        .filter(p => p.race !== null && p.race_position !== null)
+        .map(p => ({
+          position: p.race_position!,
+          date: p.race!.date
+        }));
+
         setPositionData({
-          labels: positionsData.map(p => format(new Date(p.race.date), 'MMM d', { locale: es })),
+          labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
           datasets: [{
-            data: positionsData.map(p => p.race_position || 0)
+            data: validPositions.map(p => p.position)
           }]
         });
 
