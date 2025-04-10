@@ -30,10 +30,8 @@ export default function HomeScreen() {
 
       try {
         setLoading(true);
-        console.log('Starting data fetch for user:', user.id);
-        
-        // Get pilot ID for current user
-        console.log('Fetching pilot data...');
+
+        // Get pilot data for current user
         const { data: pilotData, error: pilotError } = await supabase
           .from('pilot')
           .select('*')
@@ -41,16 +39,13 @@ export default function HomeScreen() {
           .single();
 
         if (pilotError) throw pilotError;
-        console.log('Pilot data:', pilotData);
         setPilot(pilotData);
         const pilotId = pilotData.id;
-        console.log('Pilot ID found:', pilotId);
 
         // Fetch next upcoming race
-        console.log('Fetching next race...');
         const { data: raceData, error: raceError } = await supabase
           .from('race')
-          .select('*, circuit(*)')
+          .select('*, circuit (*)')
           .gt('date', new Date().toISOString())
           .order('date', { ascending: true })
           .limit(1)
@@ -60,26 +55,17 @@ export default function HomeScreen() {
           console.error('Error fetching next race:', raceError);
         } else {
           setNextRace(raceData);
-          console.log('Next race data:', raceData);
         }
 
         // Fetch recent race results for the pilot
-        console.log('Fetching recent results...');
         const { data: resultsData, error: resultsError } = await supabase
           .from('race_result')
           .select(`
-            id,
-            race_id,
+            *,
             race (
-              name,
-              circuit_id,
-              date,
-              circuit (name, image_url)
-            ),
-            session_id,
-            race_position,
-            points,
-            best_lap
+              *,
+              circuit (*)
+            )
           `)
           .eq('pilot_id', pilotId)
           .order('created_at', { ascending: false })
@@ -87,10 +73,8 @@ export default function HomeScreen() {
 
         if (resultsError) throw resultsError;
         setRecentResults(resultsData || []);
-        console.log('Recent results:', resultsData);
 
         // Calculate pilot statistics
-        console.log('Calculating pilot stats...');
         const { data: statsData, error: statsError } = await supabase
           .from('race_result')
           .select(`
@@ -102,7 +86,6 @@ export default function HomeScreen() {
           .eq('pilot_id', pilotId);
 
         if (statsError) throw statsError;
-        console.log('Raw stats data:', statsData);
 
         const stats = {
           totalRaces: statsData.filter(r => r.session_id.startsWith('race')).length,
@@ -116,10 +99,8 @@ export default function HomeScreen() {
           }, null),
         };
         setPilotStats(stats);
-        console.log('Calculated stats:', stats);
 
         // Fetch lap time progression data
-        console.log('Fetching lap time data...');
         const { data: lapTimesData, error: lapTimesError } = await supabase
           .from('lap_time')
           .select(`
@@ -131,7 +112,6 @@ export default function HomeScreen() {
           .order('date', { foreignTable: 'race', ascending: true });
 
         if (lapTimesError) throw lapTimesError;
-        console.log('Raw lap time data:', lapTimesData);
 
         const processedLapTimes = lapTimesData.map(lt => ({
           time: lt.time,
@@ -147,10 +127,8 @@ export default function HomeScreen() {
             })
           }]
         });
-        console.log('Processed lap time data:', lapTimeData);
 
         // Fetch position progression data
-        console.log('Fetching position data...');
         const { data: positionsData, error: positionsError } = await supabase
           .from('race_result')
           .select(`
@@ -161,7 +139,6 @@ export default function HomeScreen() {
           .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
-        console.log('Raw position data:', positionsData);
 
         setPositionData({
           labels: positionsData.map(p => format(new Date(p.race.date), 'MMM d', { locale: es })),
@@ -169,14 +146,12 @@ export default function HomeScreen() {
             data: positionsData.map(p => p.race_position || 0)
           }]
         });
-        console.log('Processed position data:', positionData);
 
       } catch (error) {
         console.error('Error in data fetching:', error);
         setError('Error loading data');
       } finally {
         setLoading(false);
-        console.log('Data loading complete');
       }
     }
 
