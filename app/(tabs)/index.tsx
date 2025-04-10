@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { Calendar, Flag, Clock, ChevronRight, TrendingUp, Award, Target, Trophy } from 'lucide-react-native';
+import { Calendar, Flag, Clock, ChevronRight, TrendingUp, Award, Target, Trophy, Medal } from 'lucide-react-native';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { LineChart, BarChart } from 'react-native-chart-kit';
@@ -76,27 +76,33 @@ export default function HomeScreen() {
 
         // Calculate pilot statistics
         const { data: statsData, error: statsError } = await supabase
-          .from('race_result')
-          .select(`
-            race_position,
-            points,
-            best_lap,
-            session_id
-          `)
-          .eq('pilot_id', pilotId);
-
+        .from('race_result')
+        .select(`
+          race_position,
+          points,
+          best_lap,
+          session_id,
+          session (name)
+        `)
+        .eq('pilot_id', pilotId);
+      
         if (statsError) throw statsError;
-
+        
+        // Convertimos los datos a un formato más sencillo
+        const processedStats = statsData.map(r => ({
+          race_position: r.race_position,
+          points: r.points,
+          best_lap: r.best_lap,
+          session_name: r.session ? r.session.name : null
+        }));
+        
         const stats = {
-          totalRaces: statsData.filter(r => r.session_id.startsWith('race')).length,
-          podiums: statsData.filter(r => r.session_id.startsWith('race') && r.race_position <= 3).length,
-          wins: statsData.filter(r => r.session_id.startsWith('race') && r.race_position === 1).length,
-          totalPoints: statsData.reduce((sum, r) => sum + (r.points || 0), 0),
-          bestPosition: Math.min(...statsData.filter(r => r.session_id.startsWith('race')).map(r => r.race_position || 999)),
-          bestLap: statsData.reduce((best, r) => {
-            if (!r.best_lap) return best;
-            return !best || r.best_lap < best ? r.best_lap : best;
-          }, null),
+          totalRaces: processedStats.filter(r => r.session_name?.startsWith('Carrera')).length,
+          podiums: processedStats.filter(r => r.session_name?.startsWith('Carrera') && r.race_position <= 3).length,
+          wins: processedStats.filter(r => r.session_name?.startsWith('Carrera') && r.race_position === 1).length,
+          totalPoints: processedStats.reduce((sum, r) => sum + (r.points || 0), 0),
+          bestPosition: Math.min(...processedStats.filter(r => r.session_name?.startsWith('Carrera')).map(r => r.race_position || 999)),
+          polePosition: processedStats.filter(r => r.session_name?.startsWith('Clasificación') && r.race_position === 1).length
         };
         setPilotStats(stats);
 
@@ -309,10 +315,10 @@ export default function HomeScreen() {
                   
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Clock size={20} color={colors.primary} />
+                      <Medal size={20} color={colors.primary} />
                     </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestLap || '-'}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor tiempo</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.polePosition}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poles</Text>
                   </View>
                   
                   <View style={styles.statItem}>
@@ -376,9 +382,9 @@ export default function HomeScreen() {
 
             <View style={styles.recentResultsSection}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Results</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Últimos Resultados</Text>
                 <TouchableOpacity style={styles.viewAllButton}>
-                  <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
+                  <Text style={[styles.viewAllText, { color: colors.primary }]}>Ver todos</Text>
                   <ChevronRight size={16} color={colors.primary} />
                 </TouchableOpacity>
               </View>
@@ -401,19 +407,19 @@ export default function HomeScreen() {
                     <View style={styles.resultContent}>
                       <View style={styles.resultStats}>
                         <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Position</Text>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Posición</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
                             {result.race_position || '-'}
                           </Text>
                         </View>
                         <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Points</Text>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Puntos</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
                             {result.points || '0'}
                           </Text>
                         </View>
                         <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Best Lap</Text>
+                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Mejor vuelta</Text>
                           <Text style={[styles.resultStatValue, { color: colors.text }]}>
                             {result.best_lap || '-'}
                           </Text>
@@ -424,7 +430,7 @@ export default function HomeScreen() {
                 ))
               ) : (
                 <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
-                  No recent results available
+                  No hay resultados disponibles
                 </Text>
               )}
             </View>
