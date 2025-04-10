@@ -21,6 +21,7 @@ export default function HomeScreen() {
   const [pilotStats, setPilotStats] = useState<any>(null);
   const [lapTimeData, setLapTimeData] = useState<any>(null);
   const [positionData, setPositionData] = useState<any>(null);
+  const [championshipPositionData, setChampionshipPositionData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,19 +77,18 @@ export default function HomeScreen() {
 
         // Calculate pilot statistics
         const { data: statsData, error: statsError } = await supabase
-        .from('race_result')
-        .select(`
-          race_position,
-          points,
-          best_lap,
-          session_id,
-          session (name)
-        `)
-        .eq('pilot_id', pilotId);
-      
+          .from('race_result')
+          .select(`
+            race_position,
+            points,
+            best_lap,
+            session_id,
+            session (name)
+          `)
+          .eq('pilot_id', pilotId);
+        
         if (statsError) throw statsError;
         
-        // Convertimos los datos a un formato más sencillo
         const processedStats = statsData.map(r => ({
           race_position: r.race_position,
           points: r.points,
@@ -117,7 +117,6 @@ export default function HomeScreen() {
           `)
           .eq('pilot_id', pilotId);
 
-        // Type for response
         type SimpleLapTime = {
           time: string;
           race: { date: string } | null;
@@ -132,7 +131,6 @@ export default function HomeScreen() {
             date: lt.race!.date
           }));
       
-        // Set chart data
         setLapTimeData({
           labels: processedLapTimes.map(lt => format(new Date(lt.date), 'MMM d', { locale: es })),
           datasets: [{
@@ -145,38 +143,135 @@ export default function HomeScreen() {
 
         // Fetch position progression data
         const { data: positionsData, error: positionsError } = await supabase
-        .from('race_result')
-        .select(`
-          race_position,
-          race (
-            date
-          )
-        `)
-        .eq('pilot_id', pilotId)
-        .order('date', { foreignTable: 'race', ascending: true });
+          .from('race_result')
+          .select(`
+            race_position,
+            race (
+              date
+            )
+          `)
+          .eq('pilot_id', pilotId)
+          .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
 
-        // Type for response
         type SimpleRaceResult = {
-        race_position: number | null;
-        race: { date: string } | null;
+          race_position: number | null;
+          race: { date: string } | null;
         };
 
         const positions = positionsData as unknown as SimpleRaceResult[];
 
         const validPositions = positions
-        .filter(p => p.race !== null && p.race_position !== null)
-        .map(p => ({
-          position: p.race_position!,
-          date: p.race!.date
-        }));
+          .filter(p => p.race !== null && p.race_position !== null)
+          .map(p => ({
+            position: p.race_position!,
+            date: p.race!.date
+          }));
 
         setPositionData({
           labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
           datasets: [{
             data: validPositions.map(p => p.position)
           }]
+        });
+
+        // NEW: Fetch championship position progression
+        const { data: allResultsData, error: allResultsError } = await supabase
+          .from('race_result')
+          .select(`
+            pilot_id,
+            points,
+            race (
+              id,
+              date,
+              name
+            )
+          `)
+          .order('date', { foreignTable: 'race', ascending: true });
+
+        if (allResultsError) throw allResultsError;
+
+        type ProcessedResult = {
+          pilot_id: string;
+          points: number;
+          race_id: string;
+          date: string;
+        };
+
+        const processedResults = (allResultsData as any[]).filter(r => r.race !== null).map(r => ({
+          pilot_id: r.pilot_id,
+          points: r.points || 0,
+          race_id: r.race.id,
+          date: r.race.date
+        }));
+
+        // Agrupamos por carrera (ordenadas por fecha)
+        const races = Array.from(new Set(processedResults.map(r => r.race_id)))
+          .map(raceId => {
+            const raceData = processedResults.find(r => r.race_id === raceId);
+            return {
+              id: raceId,
+              date: raceData?.date || '',
+              name: raceData?.race?.name || ''
+            };
+          })
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        // Calculamos puntos acumulados por piloto después de cada carrera
+        const championshipData: {
+          raceId: string;
+          date: string;
+          raceName: string;
+          standings: {
+            pilot_id: string;
+            totalPoints: number;
+          }[];
+        }[] = [];
+
+        let accumulatedPoints: Record<string, number> = {};
+
+        for (const race of races) {
+          // Obtenemos resultados de esta carrera
+          const raceResults = processedResults.filter(r => r.race_id === race.id);
+          
+          // Sumamos puntos a los acumulados
+          for (const result of raceResults) {
+            accumulatedPoints[result.pilot_id] = 
+              (accumulatedPoints[result.pilot_id] || 0) + result.points;
+          }
+          
+          // Guardamos el estado del campeonato después de esta carrera
+          championshipData.push({
+            raceId: race.id,
+            date: race.date,
+            raceName: race.name,
+            standings: Object.entries(accumulatedPoints)
+              .map(([pilot_id, totalPoints]) => ({ pilot_id, totalPoints }))
+              .sort((a, b) => b.totalPoints - a.totalPoints) // Orden descendente por puntos
+          });
+        }
+
+        // Encontramos la posición de nuestro piloto en cada carrera
+        const pilotChampionshipPositions = championshipData.map(raceData => {
+          const pilotStanding = raceData.standings.findIndex(
+            standing => standing.pilot_id === pilotId
+          );
+          
+          return {
+            date: raceData.date,
+            raceName: raceData.raceName,
+            position: pilotStanding !== -1 ? pilotStanding + 1 : null // +1 porque el índice empieza en 0
+          };
+        }).filter(data => data.position !== null);
+
+        // Preparamos datos para el gráfico
+        setChampionshipPositionData({
+          labels: pilotChampionshipPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
+          datasets: [{
+            data: pilotChampionshipPositions.map(p => p.position!)
+          }],
+          raceNames: pilotChampionshipPositions.map(p => p.raceName)
         });
 
       } catch (error) {
@@ -332,36 +427,88 @@ export default function HomeScreen() {
               </Card>
             )}
 
-            {lapTimeData && (
+            {championshipPositionData && (
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión de tiempo por vuelta</Text>
-                  <Clock size={20} color={colors.primary} />
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Posición en el Campeonato</Text>
+                  <TrendingUp size={20} color={colors.primary} />
                 </View>
                 
                 <LineChart
-                  data={lapTimeData}
+                  data={{
+                    labels: championshipPositionData.raceNames, // Usamos nombres de carrera en lugar de fechas
+                    datasets: [{
+                      data: championshipPositionData.datasets[0].data
+                    }]
+                  }}
                   width={screenWidth - 64}
                   height={220}
-                  chartConfig={chartConfig}
+                  chartConfig={{
+                    ...chartConfig,
+                    formatYLabel: (value: string) => {
+                      const position = parseInt(value);
+                      return `${position}${position === 1 ? 'er' : 'º'}`;
+                    },
+                    // Ocultar etiquetas del eje X (nombres de carrera)
+                    propsForLabels: {
+                      ...chartConfig.propsForLabels,
+                      opacity: 0 // Hacemos invisibles las etiquetas del eje X
+                    }
+                  }}
                   bezier
                   style={styles.chart}
-                  yAxisSuffix="s"
+                  fromZero={false}
                   yAxisLabel=""
-                  formatYLabel={(value: string) => {
-                    const time = parseFloat(value);
-                    const minutes = Math.floor(time / 60);
-                    const seconds = (time % 60).toFixed(3);
-                    return `${minutes}:${seconds.padStart(6, '0')}`;
+                  segments={4}
+                  withVerticalLines={false}
+                  withInnerLines={false}
+                  yAxisInterval={1}
+                  verticalLabelRotation={0}
+                  // Invertimos el eje Y manualmente
+                  fromNumber={16}
+                  toNumber={1}
+                  getDotColor={(dataPoint, dataPointIndex) => {
+                    const position = championshipPositionData.datasets[0].data[dataPointIndex];
+                    if (position === 1) return '#FFD700'; // Oro
+                    if (position === 2) return '#C0C0C0'; // Plata
+                    if (position === 3) return '#CD7F32'; // Bronce
+                    return colors.primary;
+                  }}
+                  formatTooltipY={(value: number) => `${value}${value === 1 ? 'er' : 'º'}`}
+                  // Personalizamos el tooltip para mostrar el nombre de la carrera
+                  decorator={() => (
+                    <View style={{ width: 0, height: 0 }} /> // Esto es necesario para activar los tooltips
+                  )}
+                  getDotProps={(dataPoint, dataPointIndex) => {
+                    return {
+                      r: "6",
+                      strokeWidth: "2",
+                      stroke: colors.card,
+                      // Añadimos etiqueta con el nombre de la carrera
+                      children: (
+                        <View style={styles.dotLabelContainer}>
+                          <Text style={[styles.dotLabelText, { color: colors.text }]}>
+                            {championshipPositionData.raceNames[dataPointIndex]}
+                          </Text>
+                        </View>
+                      )
+                    };
                   }}
                 />
+                <View style={styles.raceNamesContainer}>
+                  {championshipPositionData.raceNames.map((name: string, index: number) => (
+                    <Text key={index} style={[styles.raceNameLabel, { color: colors.textSecondary }]}>
+                      {index + 1}. {name}
+                    </Text>
+                  ))}
+                </View>
               </Card>
             )}
 
             {positionData && (
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Race Positions</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Posiciones en Carrera</Text>
                   <Target size={20} color={colors.primary} />
                 </View>
                 
@@ -553,6 +700,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignSelf: 'center',
   },
+  raceNamesContainer: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+  },
+  raceNameLabel: {
+    fontSize: 10,
+    marginBottom: 2,
+  },
   recentResultsSection: {
     marginBottom: 24,
   },
@@ -611,5 +766,22 @@ const styles = StyleSheet.create({
   noResultsText: {
     textAlign: 'center',
     padding: 16,
+  },
+  dotLabelContainer: {
+    position: 'absolute',
+    top: -30, // Ajusta esta posición según necesites
+    width: 120,
+    backgroundColor: colors.card,
+    padding: 4,
+    borderRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dotLabelText: {
+    fontSize: 10,
+    textAlign: 'center',
   },
 });
