@@ -25,6 +25,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
@@ -66,7 +67,8 @@ export default function HomeScreen() {
             race (
               *,
               circuit (*)
-            )
+            ),
+            session (name)
           `)
           .eq('pilot_id', pilotId)
           .order('created_at', { ascending: false })
@@ -125,16 +127,17 @@ export default function HomeScreen() {
         const lapTimes = lapTimesData as unknown as SimpleLapTime[];
 
         const processedLapTimes = lapTimes
-          .filter(lt => lt.race !== null)
-          .map(lt => ({
-            time: lt.time,
-            date: lt.race!.date
-          }));
+        .filter(lt => lt.race !== null && lt.time)
+        .map(lt => ({
+          time: lt.time,
+          date: lt.race!.date
+        }));
       
         setLapTimeData({
           labels: processedLapTimes.map(lt => format(new Date(lt.date), 'MMM d', { locale: es })),
           datasets: [{
             data: processedLapTimes.map(lt => {
+              if (!lt.time) return 0;
               const [mins, secs] = lt.time.split(':');
               return parseFloat(mins) * 60 + parseFloat(secs);
             })
@@ -143,15 +146,19 @@ export default function HomeScreen() {
 
         // Fetch position progression data
         const { data: positionsData, error: positionsError } = await supabase
-          .from('race_result')
-          .select(`
-            race_position,
-            race (
-              date
-            )
-          `)
-          .eq('pilot_id', pilotId)
-          .order('date', { foreignTable: 'race', ascending: true });
+        .from('race_result')
+        .select(`
+          race_position,
+          race (
+            date
+          )
+        `)
+        .eq('pilot_id', pilotId)
+        .in('session_id', [
+          '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
+          '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
+        ])
+        .order('date', { foreignTable: 'race', ascending: true });      
 
         if (positionsError) throw positionsError;
 
@@ -544,7 +551,7 @@ export default function HomeScreen() {
                         {result.race?.circuit?.name || 'Unknown Circuit'}
                       </Text>
                       <Text style={[styles.resultSession, { color: colors.primary }]}>
-                        {result.race?.date}
+                        {result.session?.name}
                       </Text>
                     </View>
                     <View style={styles.resultContent}>
