@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
-import { Clock, ChevronDown, Filter, Plus, Check } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, LapTime, Circuit, Pilot, Race } from '@/lib/supabase';
 
 export default function LapTimesScreen() {
@@ -19,7 +19,7 @@ export default function LapTimesScreen() {
   const [lapTimes, setLapTimes] = useState<LapTime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form state for adding lap times (for organizers)
   const [pilots, setPilots] = useState<Pilot[]>([]);
   const [races, setRaces] = useState<Race[]>([]);
@@ -44,7 +44,7 @@ export default function LapTimesScreen() {
     { id: 'race1', name: 'Carrera 1' },
     { id: 'race2', name: 'Carrera 2' }
   ];
-  
+
   const formSessions = [
     { id: 'practice', name: 'Práctica' },
     { id: 'qualifying', name: 'Clasificación' },
@@ -56,7 +56,7 @@ export default function LapTimesScreen() {
     async function fetchData() {
       try {
         setLoading(true);
-        
+
         // Fetch circuits
         const { data: circuitsData, error: circuitsError } = await supabase
           .from('circuits')
@@ -66,12 +66,12 @@ export default function LapTimesScreen() {
         if (circuitsError) {
           throw circuitsError;
         }
-        
+
         setCircuits(circuitsData || []);
-        
+
         // Fetch lap times
         await fetchLapTimes();
-        
+
         // For organizers, fetch pilots and races for the form
         if (user?.user_metadata?.role === 'organizer') {
           const { data: pilotsData, error: pilotsError } = await supabase
@@ -82,9 +82,9 @@ export default function LapTimesScreen() {
           if (pilotsError) {
             throw pilotsError;
           }
-          
+
           setPilots(pilotsData || []);
-          
+
           const { data: racesData, error: racesError } = await supabase
             .from('races')
             .select('*')
@@ -93,7 +93,7 @@ export default function LapTimesScreen() {
           if (racesError) {
             throw racesError;
           }
-          
+
           setRaces(racesData || []);
         }
       } catch (error) {
@@ -117,21 +117,21 @@ export default function LapTimesScreen() {
           race:races(id, name, circuit_id, circuit_name)
         `)
         .order('created_at', { ascending: false });
-      
+
       if (selectedCircuit !== 'all') {
         query = query.eq('race.circuit_id', selectedCircuit);
       }
-      
+
       if (selectedSession !== 'all') {
         query = query.eq('session_type', selectedSession);
       }
-      
+
       const { data, error } = await query;
-      
+
       if (error) {
         throw error;
       }
-      
+
       setLapTimes(data || []);
     } catch (error) {
       console.error('Error fetching lap times:', error);
@@ -153,12 +153,12 @@ export default function LapTimesScreen() {
       setFormLoading(true);
       setFormError(null);
       setFormSuccess(null);
-      
+
       const time = `${minutes}:${seconds}.${milliseconds}`;
-      
+
       // Calculate improvement (mock for now)
       const improvement = `-0.${Math.floor(Math.random() * 900) + 100}`;
-      
+
       const { error } = await supabase
         .from('lap_times')
         .insert({
@@ -169,19 +169,19 @@ export default function LapTimesScreen() {
           time,
           improvement
         });
-      
+
       if (error) {
         throw error;
       }
-      
+
       // Reset form
       setLapNumber('');
       setMinutes('');
       setSeconds('');
       setMilliseconds('');
-      
+
       setFormSuccess('Tiempo de vuelta añadido correctamente');
-      
+
       // Refresh lap times
       fetchLapTimes();
     } catch (error) {
@@ -207,7 +207,7 @@ export default function LapTimesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Tiempos de Vuelta" showBackButton={false} />
-      
+
       {isOrganizer && (
         <View style={styles.tabsContainer}>
           <TouchableOpacity
@@ -217,7 +217,11 @@ export default function LapTimesScreen() {
             ]}
             onPress={() => setActiveTab('view')}
           >
-            <Clock size={20} color={activeTab === 'view' ? colors.primary : colors.textSecondary} />
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={24}
+              color={activeTab === 'view' ? colors.primary : colors.textSecondary}
+            />
             <Text
               style={[
                 styles.tabText,
@@ -227,7 +231,7 @@ export default function LapTimesScreen() {
               Ver Tiempos
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.tab,
@@ -235,7 +239,11 @@ export default function LapTimesScreen() {
             ]}
             onPress={() => setActiveTab('add')}
           >
-            <Plus size={20} color={activeTab === 'add' ? colors.primary : colors.textSecondary} />
+            <MaterialCommunityIcons
+              name="plus"
+              size={24}
+              color={activeTab === 'add' ? colors.primary : colors.textSecondary}
+            />
             <Text
               style={[
                 styles.tabText,
@@ -253,9 +261,10 @@ export default function LapTimesScreen() {
           <View style={styles.filtersContainer}>
             <View style={styles.filterSection}>
               <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
-                <Filter size={16} color={colors.textSecondary} style={styles.filterIcon} /> Filtros:
+                <MaterialCommunityIcons name="filter" size={16} color={colors.textSecondary} style={styles.filterIcon} />
+                Filtros:
               </Text>
-              
+
               <View style={styles.dropdownContainer}>
                 <TouchableOpacity
                   style={[styles.dropdown, { borderColor: colors.border }]}
@@ -265,13 +274,13 @@ export default function LapTimesScreen() {
                   }}
                 >
                   <Text style={[styles.dropdownText, { color: colors.text }]}>
-                    {selectedCircuit === 'all' 
-                      ? 'Todos los Circuitos' 
+                    {selectedCircuit === 'all'
+                      ? 'Todos los Circuitos'
                       : circuits.find(c => c.id === selectedCircuit)?.name || 'Seleccionar Circuito'}
                   </Text>
-                  <ChevronDown size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
-                
+
                 {showCircuitDropdown && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <TouchableOpacity
@@ -283,9 +292,9 @@ export default function LapTimesScreen() {
                       }}
                     >
                       <Text style={[styles.dropdownItemText, { color: colors.text }]}>Todos los Circuitos</Text>
-                      {selectedCircuit === 'all' && <Check size={16} color={colors.primary} />}
+                      {selectedCircuit === 'all' && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                     </TouchableOpacity>
-                    
+
                     {circuits.map((circuit) => (
                       <TouchableOpacity
                         key={circuit.id}
@@ -296,13 +305,13 @@ export default function LapTimesScreen() {
                         }}
                       >
                         <Text style={[styles.dropdownItemText, { color: colors.text }]}>{circuit.name}</Text>
-                        {selectedCircuit === circuit.id && <Check size={16} color={colors.primary} />}
+                        {selectedCircuit === circuit.id && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </View>
-              
+
               <View style={styles.dropdownContainer}>
                 <TouchableOpacity
                   style={[styles.dropdown, { borderColor: colors.border }]}
@@ -314,9 +323,9 @@ export default function LapTimesScreen() {
                   <Text style={[styles.dropdownText, { color: colors.text }]}>
                     {sessions.find(s => s.id === selectedSession)?.name || 'Seleccionar Sesión'}
                   </Text>
-                  <ChevronDown size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
-                
+
                 {showSessionDropdown && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {sessions.map((session) => (
@@ -329,7 +338,7 @@ export default function LapTimesScreen() {
                         }}
                       >
                         <Text style={[styles.dropdownItemText, { color: colors.text }]}>{session.name}</Text>
-                        {selectedSession === session.id && <Check size={16} color={colors.primary} />}
+                        {selectedSession === session.id && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -358,7 +367,7 @@ export default function LapTimesScreen() {
                   <Text style={[styles.timeHeader, { color: colors.textSecondary }]}>Tiempo</Text>
                   <Text style={[styles.improvementHeader, { color: colors.textSecondary }]}>Mejora</Text>
                 </View>
-                
+
                 {lapTimes.length > 0 ? (
                   lapTimes.map((lap) => (
                     <Card key={lap.id} style={styles.lapTimeCard}>
@@ -373,16 +382,16 @@ export default function LapTimesScreen() {
                             {lap.pilot?.name || 'Piloto Desconocido'}
                           </Text>
                         </View>
-                        
+
                         <Text style={[styles.lapNumber, { color: colors.text }]}>{lap.lap_number}</Text>
-                        
+
                         <Text style={[styles.lapTime, { color: colors.text }]}>{lap.time}</Text>
-                        
+
                         <Text style={[styles.improvement, { color: colors.success }]}>
                           {lap.improvement || '-'}
                         </Text>
                       </View>
-                      
+
                       <View style={styles.lapTimeFooter}>
                         <Text style={[styles.sessionInfo, { color: colors.textSecondary }]}>
                           {lap.race?.circuit_name || 'Circuito Desconocido'} • {getSessionName(lap.session_type)}
@@ -403,19 +412,19 @@ export default function LapTimesScreen() {
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <Card style={styles.formCard}>
             <Text style={[styles.formTitle, { color: colors.text }]}>Añadir Nuevo Tiempo de Vuelta</Text>
-            
+
             {formError && (
               <View style={[styles.formErrorContainer, { backgroundColor: colors.errorLight }]}>
                 <Text style={[styles.formErrorText, { color: colors.error }]}>{formError}</Text>
               </View>
             )}
-            
+
             {formSuccess && (
               <View style={[styles.formSuccessContainer, { backgroundColor: colors.success + '20' }]}>
                 <Text style={[styles.formSuccessText, { color: colors.success }]}>{formSuccess}</Text>
               </View>
             )}
-            
+
             <View style={styles.formGroup}>
               <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Piloto</Text>
               <View style={styles.dropdownContainer}>
@@ -428,13 +437,13 @@ export default function LapTimesScreen() {
                   }}
                 >
                   <Text style={[styles.dropdownText, { color: colors.text }]}>
-                    {selectedPilot 
+                    {selectedPilot
                       ? pilots.find(p => p.id === selectedPilot)?.name || 'Seleccionar Piloto'
                       : 'Seleccionar Piloto'}
                   </Text>
-                  <ChevronDown size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
-                
+
                 {showPilotDropdown && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {pilots.map((pilot) => (
@@ -449,14 +458,14 @@ export default function LapTimesScreen() {
                         <Text style={[styles.dropdownItemText, { color: colors.text }]}>
                           {pilot.number} - {pilot.name}
                         </Text>
-                        {selectedPilot === pilot.id && <Check size={16} color={colors.primary} />}
+                        {selectedPilot === pilot.id && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </View>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Carrera</Text>
               <View style={styles.dropdownContainer}>
@@ -469,13 +478,13 @@ export default function LapTimesScreen() {
                   }}
                 >
                   <Text style={[styles.dropdownText, { color: colors.text }]}>
-                    {selectedRace 
+                    {selectedRace
                       ? races.find(r => r.id === selectedRace)?.name || 'Seleccionar Carrera'
                       : 'Seleccionar Carrera'}
                   </Text>
-                  <ChevronDown size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
-                
+
                 {showRaceDropdown && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {races.map((race) => (
@@ -490,14 +499,14 @@ export default function LapTimesScreen() {
                         <Text style={[styles.dropdownItemText, { color: colors.text }]}>
                           {race.name} ({new Date(race.date).toLocaleDateString('es-ES')})
                         </Text>
-                        {selectedRace === race.id && <Check size={16} color={colors.primary} />}
+                        {selectedRace === race.id && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </View>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Número de Vuelta</Text>
               <TextInput
@@ -509,7 +518,7 @@ export default function LapTimesScreen() {
                 keyboardType="number-pad"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Tiempo de Vuelta</Text>
               <View style={styles.timeInputContainer}>
@@ -544,7 +553,7 @@ export default function LapTimesScreen() {
                 />
               </View>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Sesión</Text>
               <View style={styles.dropdownContainer}>
@@ -559,9 +568,9 @@ export default function LapTimesScreen() {
                   <Text style={[styles.dropdownText, { color: colors.text }]}>
                     {formSessions.find(s => s.id === formSession)?.name || 'Seleccionar Sesión'}
                   </Text>
-                  <ChevronDown size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
-                
+
                 {showFormSessionDropdown && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {formSessions.map((session) => (
@@ -574,14 +583,14 @@ export default function LapTimesScreen() {
                         }}
                       >
                         <Text style={[styles.dropdownItemText, { color: colors.text }]}>{session.name}</Text>
-                        {formSession === session.id && <Check size={16} color={colors.primary} />}
+                        {formSession === session.id && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </View>
             </View>
-            
+
             <TouchableOpacity
               style={[styles.submitButton, { backgroundColor: colors.primary }]}
               onPress={handleAddLapTime}
@@ -807,7 +816,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
-  }, formErrorContainer: {
+  },
+  formErrorContainer: {
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,

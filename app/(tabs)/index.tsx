@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { Calendar, Flag, Clock, ChevronRight, TrendingUp, Award, Target, Trophy, Medal } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { LineChart, BarChart } from 'react-native-chart-kit';
@@ -88,16 +88,16 @@ export default function HomeScreen() {
             session (name)
           `)
           .eq('pilot_id', pilotId);
-        
+
         if (statsError) throw statsError;
-        
+
         const processedStats = statsData.map(r => ({
           race_position: r.race_position,
           points: r.points,
           best_lap: r.best_lap,
           session_name: r.session ? r.session.name : null
         }));
-        
+
         const stats = {
           totalRaces: processedStats.filter(r => r.session_name?.startsWith('Carrera')).length,
           podiums: processedStats.filter(r => r.session_name?.startsWith('Carrera') && r.race_position <= 3).length,
@@ -127,12 +127,12 @@ export default function HomeScreen() {
         const lapTimes = lapTimesData as unknown as SimpleLapTime[];
 
         const processedLapTimes = lapTimes
-        .filter(lt => lt.race !== null && lt.time)
-        .map(lt => ({
-          time: lt.time,
-          date: lt.race!.date
-        }));
-      
+          .filter(lt => lt.race !== null && lt.time)
+          .map(lt => ({
+            time: lt.time,
+            date: lt.race!.date
+          }));
+
         setLapTimeData({
           labels: processedLapTimes.map(lt => format(new Date(lt.date), 'MMM d', { locale: es })),
           datasets: [{
@@ -142,23 +142,23 @@ export default function HomeScreen() {
               return parseFloat(mins) * 60 + parseFloat(secs);
             })
           }]
-        });      
+        });
 
         // Fetch position progression data
         const { data: positionsData, error: positionsError } = await supabase
-        .from('race_result')
-        .select(`
+          .from('race_result')
+          .select(`
           race_position,
           race (
             date
           )
         `)
-        .eq('pilot_id', pilotId)
-        .in('session_id', [
-          '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
-          '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
-        ])
-        .order('date', { foreignTable: 'race', ascending: true });      
+          .eq('pilot_id', pilotId)
+          .in('session_id', [
+            '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
+            '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
+          ])
+          .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
 
@@ -241,13 +241,13 @@ export default function HomeScreen() {
         for (const race of races) {
           // Obtenemos resultados de esta carrera
           const raceResults = processedResults.filter(r => r.race_id === race.id);
-          
+
           // Sumamos puntos a los acumulados
           for (const result of raceResults) {
-            accumulatedPoints[result.pilot_id] = 
+            accumulatedPoints[result.pilot_id] =
               (accumulatedPoints[result.pilot_id] || 0) + result.points;
           }
-          
+
           // Guardamos el estado del campeonato después de esta carrera
           championshipData.push({
             raceId: race.id,
@@ -264,7 +264,7 @@ export default function HomeScreen() {
           const pilotStanding = raceData.standings.findIndex(
             standing => standing.pilot_id === pilotId
           );
-          
+
           return {
             date: raceData.date,
             raceName: raceData.raceName,
@@ -319,9 +319,9 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Karting League" showBackButton={false} />
-      
-      <ScrollView 
-        style={styles.scrollView} 
+
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -353,13 +353,13 @@ export default function HomeScreen() {
               <Card style={styles.nextRaceCard}>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima carrera</Text>
-                  <Calendar size={20} color={colors.primary} />
+                  <MaterialCommunityIcons name="calendar" size={24} color={colors.primary} />
                 </View>
-                
+
                 <View style={styles.nextRaceContent}>
-                  <Image 
-                    source={{ uri: nextRace?.circuit?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
-                    style={styles.circuitImage} 
+                  <Image
+                    source={{ uri: nextRace?.circuit?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }}
+                    style={styles.circuitImage}
                   />
                   <View style={styles.raceInfo}>
                     <Text style={[styles.raceName, { color: colors.text }]}>{nextRace.name}</Text>
@@ -379,53 +379,53 @@ export default function HomeScreen() {
               <Card style={styles.statsCard}>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>Estadísticas generales</Text>
-                  <Award size={20} color={colors.primary} />
+                  <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
                 </View>
 
                 <View style={styles.statsGrid}>
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Flag size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="flag" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalRaces}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Award size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podiums</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Trophy size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trophy" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Victorias</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Target size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor posición</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Medal size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.polePosition}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poles</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <TrendingUp size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trending-up" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalPoints}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
@@ -438,9 +438,9 @@ export default function HomeScreen() {
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>Posición en el Campeonato</Text>
-                  <TrendingUp size={20} color={colors.primary} />
+                  <MaterialCommunityIcons name="trending-up" size={24} color={colors.primary} />
                 </View>
-                
+
                 <LineChart
                   data={{
                     labels: championshipPositionData.raceNames, // Usamos nombres de carrera en lugar de fechas
@@ -516,9 +516,9 @@ export default function HomeScreen() {
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>Posiciones en Carrera</Text>
-                  <Target size={20} color={colors.primary} />
+                  <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
                 </View>
-                
+
                 <BarChart
                   data={positionData}
                   width={screenWidth - 64}
@@ -539,7 +539,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Últimos Resultados</Text>
                 <TouchableOpacity style={styles.viewAllButton}>
                   <Text style={[styles.viewAllText, { color: colors.primary }]}>Ver todos</Text>
-                  <ChevronRight size={16} color={colors.primary} />
+                  <MaterialCommunityIcons name="chevron-right" size={24} color={colors.primary} />
                 </TouchableOpacity>
               </View>
 

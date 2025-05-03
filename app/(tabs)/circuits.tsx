@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIn
 import { useTheme } from '@/context/ThemeContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
-import { MapPin, Info, ChevronRight } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, Circuit } from '@/lib/supabase';
 
 export default function CircuitsScreen() {
@@ -41,13 +41,13 @@ export default function CircuitsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Circuitos" showBackButton={false} />
-      
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Circuitos</Text>
         <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
           Explora los circuitos de karting en los que la Karting League ha realizado carreras:
         </Text>
-        
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -70,49 +70,50 @@ export default function CircuitsScreen() {
               onPress={() => setSelectedCircuit(selectedCircuit === circuit.id ? null : circuit.id)}
             >
               <Card style={styles.circuitCard}>
-                <Image 
-                  source={{ uri: circuit.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }} 
-                  style={styles.circuitImage} 
+                <Image
+                  source={{ uri: circuit.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }}
+                  style={styles.circuitImage}
                 />
-                
+
                 <View style={styles.circuitInfo}>
                   <View style={styles.circuitHeader}>
                     <Text style={[styles.circuitName, { color: colors.text }]}>{circuit.name}</Text>
-                    <ChevronRight 
-                      size={20} 
-                      color={colors.primary} 
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={24}
+                      color={colors.primary}
                       style={{ transform: [{ rotate: selectedCircuit === circuit.id ? '90deg' : '0deg' }] }}
                     />
                   </View>
-                  
+
                   <View style={styles.circuitLocation}>
-                    <MapPin size={16} color={colors.textSecondary} />
+                    <MaterialCommunityIcons name="map-marker" size={24} color={colors.textSecondary} />
                     <Text style={[styles.locationText, { color: colors.textSecondary }]}>
                       {circuit.location}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.circuitStats}>
                     <View style={styles.statItem}>
                       <Text style={[styles.statValue, { color: colors.text }]}>{circuit.length}</Text>
                       <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Longitud</Text>
                     </View>
-                    
+
                     <View style={styles.statItem}>
                       <Text style={[styles.statValue, { color: colors.text }]}>{circuit.turns}</Text>
                       <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Curvas</Text>
                     </View>
-                    
+
                     <View style={styles.statItem}>
                       <Text style={[styles.statValue, { color: colors.text }]}>{circuit.record_lap_time || '-'}</Text>
                       <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Récord</Text>
                     </View>
                   </View>
-                  
+
                   {selectedCircuit === circuit.id && (
                     <View style={styles.expandedContent}>
                       <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                      
+
                       <View style={styles.recordHolder}>
                         <Text style={[styles.recordHolderLabel, { color: colors.textSecondary }]}>
                           Récord por:
@@ -121,15 +122,15 @@ export default function CircuitsScreen() {
                           {circuit.record_lap_pilot || 'No establecido'}
                         </Text>
                       </View>
-                      
+
                       <View style={styles.descriptionContainer}>
-                        <Info size={16} color={colors.primary} style={styles.descriptionIcon} />
+                        <MaterialCommunityIcons name="information" size={24} color={colors.primary} style={styles.descriptionIcon} />
                         <Text style={[styles.description, { color: colors.text }]}>
                           {circuit.description || 'No hay descripción disponible para este circuito.'}
                         </Text>
                       </View>
-                      
-                      <TouchableOpacity 
+
+                      <TouchableOpacity
                         style={[styles.viewRacesButton, { backgroundColor: colors.primaryLight }]}
                       >
                         <Text style={[styles.viewRacesText, { color: colors.primary }]}>

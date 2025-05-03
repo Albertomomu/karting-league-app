@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Chrome as Home, Trophy, User, Clock, MapPin } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 
 export default function TabLayout() {
@@ -24,36 +24,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color, size }) => (
-            <Home size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="home" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="standings"
         options={{
           title: 'Clasificación',
-          tabBarIcon: ({ color, size }) => (
-            <Trophy size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="trophy" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="circuits"
         options={{
           title: 'Circuitos',
-          tabBarIcon: ({ color, size }) => (
-            <MapPin size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="map-marker" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Perfil',
-          tabBarIcon: ({ color, size }) => (
-            <User size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="account" size={24} color={color} />,
         }}
       />
     </Tabs>

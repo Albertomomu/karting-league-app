@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
-import { User, Settings, Bell, LogOut, Moon, ChevronRight, Shield, Trophy, Clock } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 
@@ -19,10 +19,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     async function fetchPilotData() {
       if (!user) return;
-      
+
       try {
         setLoading(true);
-        
+
         // Fetch pilot data if user is a pilot
         if (user.user_metadata?.role === 'pilot') {
           const { data, error } = await supabase
@@ -33,11 +33,11 @@ export default function ProfileScreen() {
             `)
             .eq('user_id', user.id)
             .single();
-          
+
           if (error && error.code !== 'PGRST116') {
             throw error;
           }
-          
+
           setPilotData(data);
         }
       } catch (error) {
@@ -47,7 +47,7 @@ export default function ProfileScreen() {
         setLoading(false);
       }
     }
-    
+
     fetchPilotData();
   }, [user]);
 
@@ -72,7 +72,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Perfil" showBackButton={false} />
-      
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -86,15 +86,15 @@ export default function ProfileScreen() {
             <View style={styles.profileHeader}>
               <View style={[styles.avatarContainer, { backgroundColor: colors.primaryLight }]}>
                 {user?.user_metadata?.avatar_url ? (
-                  <Image 
-                    source={{ uri: user.user_metadata.avatar_url }} 
-                    style={styles.avatar} 
+                  <Image
+                    source={{ uri: user.user_metadata.avatar_url }}
+                    style={styles.avatar}
                   />
                 ) : (
-                  <User size={40} color={colors.primary} />
+                  <MaterialCommunityIcons name="account" size={40} color={colors.primary} />
                 )}
               </View>
-              
+
               <View style={styles.profileInfo}>
                 <Text style={[styles.profileName, { color: colors.text }]}>
                   {user?.user_metadata?.name || pilotData?.name || 'Piloto de Karting'}
@@ -102,7 +102,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
                   {user?.email || 'piloto@kartingleague.com'}
                 </Text>
-                
+
                 {user?.user_metadata?.role === 'pilot' && (
                   <View style={styles.pilotNumberContainer}>
                     <View style={[styles.pilotNumber, { backgroundColor: colors.primary }]}>
@@ -115,64 +115,64 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                 )}
-                
+
                 {user?.user_metadata?.role === 'organizer' && (
                   <View style={styles.organizerBadge}>
-                    <Shield size={14} color={colors.white} />
+                    <MaterialCommunityIcons name="shield" size={14} color={colors.white} />
                     <Text style={styles.organizerText}>Organizador</Text>
                   </View>
                 )}
               </View>
             </View>
-            
+
             {user?.user_metadata?.role === 'pilot' && (
               <Card style={styles.statsCard}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Estadísticas de Temporada</Text>
-                
+
                 <View style={styles.statsGrid}>
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Trophy size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trophy" size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.races}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Trophy size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trophy" size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podios</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Trophy size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trophy" size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Victorias</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Trophy size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trophy" size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Pos</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Clock size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="clock" size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestLap}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Vuelta</Text>
                   </View>
-                  
+
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <Trophy size={20} color={colors.primary} />
+                      <MaterialCommunityIcons name="trophy" size={20} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.points}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
@@ -180,14 +180,14 @@ export default function ProfileScreen() {
                 </View>
               </Card>
             )}
-            
+
             <Card style={styles.settingsCard}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Ajustes</Text>
-              
+
               <View style={styles.settingsList}>
                 <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
                   <View style={styles.settingLeft}>
-                    <Bell size={20} color={colors.textSecondary} style={styles.settingIcon} />
+                    <MaterialCommunityIcons name="bell" size={20} color={colors.textSecondary} style={styles.settingIcon} />
                     <Text style={[styles.settingText, { color: colors.text }]}>Notificaciones</Text>
                   </View>
                   <Switch
@@ -197,10 +197,10 @@ export default function ProfileScreen() {
                     thumbColor={notificationsEnabled ? colors.primary : colors.textSecondary}
                   />
                 </View>
-                
+
                 <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
                   <View style={styles.settingLeft}>
-                    <Moon size={20} color={colors.textSecondary} style={styles.settingIcon} />
+                    <MaterialCommunityIcons name="theme-light-dark" size={20} color={colors.textSecondary} style={styles.settingIcon} />
                     <Text style={[styles.settingText, { color: colors.text }]}>Modo Oscuro</Text>
                   </View>
                   <Switch
@@ -210,22 +210,22 @@ export default function ProfileScreen() {
                     thumbColor={isDark ? colors.primary : colors.textSecondary}
                   />
                 </View>
-                
+
                 <TouchableOpacity style={styles.settingItem}>
                   <View style={styles.settingLeft}>
-                    <Settings size={20} color={colors.textSecondary} style={styles.settingIcon} />
+                    <MaterialCommunityIcons name="cog" size={20} color={colors.textSecondary} style={styles.settingIcon} />
                     <Text style={[styles.settingText, { color: colors.text }]}>Ajustes de Cuenta</Text>
                   </View>
-                  <ChevronRight size={20} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </Card>
-            
+
             <TouchableOpacity
               style={[styles.signOutButton, { backgroundColor: colors.error }]}
               onPress={handleSignOut}
             >
-              <LogOut size={20} color={colors.white} style={styles.signOutIcon} />
+              <MaterialCommunityIcons name="logout" size={20} color={colors.white} style={styles.signOutIcon} />
               <Text style={styles.signOutText}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </>
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   settingsList: {
-    
+
   },
   settingItem: {
     flexDirection: 'row',

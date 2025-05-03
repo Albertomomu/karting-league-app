@@ -3,13 +3,13 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator 
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { signIn } = useAuth();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,29 +38,29 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <TouchableOpacity 
-        style={styles.backButton} 
+      <TouchableOpacity
+        style={styles.backButton}
         onPress={() => router.back()}
       >
-        <ArrowLeft size={24} color={colors.text} />
+        <Ionicons name="arrow-back" size={24} color={colors.text} />
       </TouchableOpacity>
-      
+
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Bienvenido de nuevo</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Inicia sesión para continuar
         </Text>
-        
+
         {error ? (
           <View style={[styles.errorContainer, { backgroundColor: colors.errorLight }]}>
             <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           </View>
         ) : null}
-        
+
         <View style={styles.form}>
           <View style={styles.inputContainer}>
             <View style={styles.inputIconContainer}>
-              <Mail size={20} color={colors.textSecondary} />
+              <MaterialCommunityIcons name="email-outline" size={20} color={colors.textSecondary} />
             </View>
             <TextInput
               style={[styles.input, { borderColor: colors.border, color: colors.text }]}
@@ -72,10 +72,10 @@ export default function LoginScreen() {
               keyboardType="email-address"
             />
           </View>
-          
+
           <View style={styles.inputContainer}>
             <View style={styles.inputIconContainer}>
-              <Lock size={20} color={colors.textSecondary} />
+              <MaterialCommunityIcons name="lock-outline" size={20} color={colors.textSecondary} />
             </View>
             <TextInput
               style={[styles.input, { borderColor: colors.border, color: colors.text }]}
@@ -89,20 +89,16 @@ export default function LoginScreen() {
               style={styles.passwordToggle}
               onPress={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? (
-                <EyeOff size={20} color={colors.textSecondary} />
-              ) : (
-                <Eye size={20} color={colors.textSecondary} />
-              )}
+              <MaterialCommunityIcons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          
+
           <TouchableOpacity style={styles.forgotPassword}>
             <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
               ¿Olvidaste tu contraseña?
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.button, { backgroundColor: colors.primary }]}
             onPress={handleLogin}
@@ -116,7 +112,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <View style={styles.footer}>
         <Text style={[styles.footerText, { color: colors.textSecondary }]}>
           ¿No tienes una cuenta?
@@ -161,7 +157,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   form: {
-    
+
   },
   inputContainer: {
     flexDirection: 'row',

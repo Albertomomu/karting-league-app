@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 
 interface HeaderProps {
@@ -17,14 +17,14 @@ export default function Header({ title, showBackButton = true, rightComponent }:
     <View style={[styles.header, { backgroundColor: colors.background }]}>
       <View style={styles.leftContainer}>
         {showBackButton && (
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color={colors.text} />
-          </TouchableOpacity>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </Pressable>
         )}
       </View>
-      
+
       <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-      
+
       <View style={styles.rightContainer}>
         {rightComponent}
       </View>

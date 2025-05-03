@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
-import { Trophy, Users, Calendar, ChevronRight } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, Season, Pilot, Team, RaceResult } from '@/lib/supabase';
 
 export default function StandingsScreen() {
@@ -30,7 +30,7 @@ export default function StandingsScreen() {
         if (error) throw error;
 
         setSeasons(data || []);
-        
+
         // Set active season as default
         const activeSeason = data?.find(season => season.is_active);
         setSelectedSeason(activeSeason?.id || data?.[0]?.id || null);
@@ -48,14 +48,14 @@ export default function StandingsScreen() {
   useEffect(() => {
     async function fetchStandings() {
       if (!selectedSeason) return;
-      
+
       try {
         setLoading(true);
-        
+
         // Fetch pilot standings with points
         const { data: pilotData, error: pilotError } = await supabase
-        .from('pilot')
-        .select(`
+          .from('pilot')
+          .select(`
           id,
           name,
           number,
@@ -67,7 +67,7 @@ export default function StandingsScreen() {
             )
           )
         `)
-        .eq('race_result.race.season_id', selectedSeason);
+          .eq('race_result.race.season_id', selectedSeason);
 
         if (pilotError) throw pilotError;
 
@@ -92,8 +92,8 @@ export default function StandingsScreen() {
 
         // Fetch team standings with points
         const { data: teamData, error: teamError } = await supabase
-        .from('team')
-        .select(`
+          .from('team')
+          .select(`
           id,
           name,
           pilots:pilot(
@@ -106,8 +106,8 @@ export default function StandingsScreen() {
             )
           )
         `)
-        .eq('pilot.race_result.race.season_id', selectedSeason);
-      
+          .eq('pilot.race_result.race.season_id', selectedSeason);
+
 
         if (teamError) throw teamError;
 
@@ -182,7 +182,7 @@ export default function StandingsScreen() {
           <Card key={pilot.id} style={styles.standingCard}>
             <View style={styles.standingRow}>
               <View style={[styles.positionCell, { width: 50 }]}>
-                <View 
+                <View
                   style={[
                     styles.positionBadge,
                     pilot.position === 1 && { backgroundColor: '#FFD700' },
@@ -191,7 +191,7 @@ export default function StandingsScreen() {
                     pilot.position > 3 && { backgroundColor: colors.card }
                   ]}
                 >
-                  <Text 
+                  <Text
                     style={[
                       styles.positionText,
                       pilot.position <= 3 && { color: '#000' },
@@ -208,8 +208,8 @@ export default function StandingsScreen() {
                 </Text>
               </View>
 
-              <Text 
-                style={[styles.teamCell, { flex: 1, color: colors.textSecondary }]} 
+              <Text
+                style={[styles.teamCell, { flex: 1, color: colors.textSecondary }]}
                 numberOfLines={1}
               >
                 {pilot.team}
@@ -267,7 +267,7 @@ export default function StandingsScreen() {
           <Card key={team.id} style={styles.standingCard}>
             <View style={styles.standingRow}>
               <View style={[styles.positionCell, { width: 50 }]}>
-                <View 
+                <View
                   style={[
                     styles.positionBadge,
                     team.position === 1 && { backgroundColor: '#FFD700' },
@@ -276,7 +276,7 @@ export default function StandingsScreen() {
                     team.position > 3 && { backgroundColor: colors.card }
                   ]}
                 >
-                  <Text 
+                  <Text
                     style={[
                       styles.positionText,
                       team.position <= 3 && { color: '#000' },
@@ -312,7 +312,7 @@ export default function StandingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Clasificaciones" showBackButton={false} />
-      
+
       <View style={styles.tabsContainer}>
         <TouchableOpacity
           style={[
@@ -321,10 +321,7 @@ export default function StandingsScreen() {
           ]}
           onPress={() => setActiveTab('pilots')}
         >
-          <Trophy 
-            size={20} 
-            color={activeTab === 'pilots' ? colors.primary : colors.textSecondary} 
-          />
+          <MaterialCommunityIcons name="trophy" size={24} color={activeTab === 'pilots' ? colors.primary : colors.textSecondary} />
           <Text
             style={[
               styles.tabText,
@@ -334,7 +331,7 @@ export default function StandingsScreen() {
             Pilotos
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[
             styles.tabButton,
@@ -342,10 +339,7 @@ export default function StandingsScreen() {
           ]}
           onPress={() => setActiveTab('teams')}
         >
-          <Users 
-            size={20} 
-            color={activeTab === 'teams' ? colors.primary : colors.textSecondary} 
-          />
+          <MaterialCommunityIcons name="account-group" size={24} color={activeTab === 'teams' ? colors.primary : colors.textSecondary} />
           <Text
             style={[
               styles.tabText,
@@ -358,10 +352,10 @@ export default function StandingsScreen() {
       </View>
 
       <View style={styles.seasonSelector}>
-        <Calendar size={18} color={colors.textSecondary} />
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
+        <MaterialCommunityIcons name="calendar" size={24} color={colors.textSecondary} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.seasonScrollContent}
         >
           {seasons.map((season) => (
