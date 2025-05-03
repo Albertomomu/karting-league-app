@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, Season, Race } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useNavigation } from '@react-navigation/native';
 
 export default function RacesScreen() {
   const { colors } = useTheme();
@@ -17,6 +18,8 @@ export default function RacesScreen() {
   const [races, setRaces] = useState<Race[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const navigation = useNavigation();
 
   useEffect(() => {
     async function fetchSeasons() {
@@ -175,10 +178,11 @@ export default function RacesScreen() {
                 </View>
               </View>
               
+              // En RacesScreen.tsx, modifica la parte del renderRaces:
               {status.status === 'completed' && (
                 <TouchableOpacity 
                   style={[styles.resultsButton, { backgroundColor: colors.primary }]}
-                  onPress={() => console.log('Ver resultados')} // You can implement navigation here
+                  onPress={() => navigation.navigate('RaceDetailsScreen', { raceId: race.id })}
                 >
                   <Text style={styles.resultsButtonText}>Ver resultados</Text>
                   <MaterialCommunityIcons 
