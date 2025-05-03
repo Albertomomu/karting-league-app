@@ -617,7 +617,7 @@ export default function HomeScreen() {
                           </Text>
                           {result.pilot?.team && (
                             <Text style={[styles.teamName, { color: colors.textSecondary }]}>
-                              {result.pilot.team}
+                              {result.pilot.team.name}
                             </Text>
                           )}
                         </View>
@@ -767,11 +767,6 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     marginBottom: 24,
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
-    alignSelf: 'center',
   },
   raceNamesContainer: {
     marginTop: 8,
