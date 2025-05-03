@@ -494,7 +494,7 @@ export default function HomeScreen() {
 
                 <LineChart
                   data={{
-                    labels: championshipPositionData.raceNames, // Usamos nombres de carrera en lugar de fechas
+                    labels: championshipPositionData.labels, // Usamos las fechas como labels
                     datasets: [{
                       data: championshipPositionData.datasets[0].data
                     }]
@@ -507,10 +507,9 @@ export default function HomeScreen() {
                       const position = parseInt(value);
                       return `${position}${position === 1 ? 'er' : 'º'}`;
                     },
-                    // Ocultar etiquetas del eje X (nombres de carrera)
                     propsForLabels: {
                       ...chartConfig.propsForLabels,
-                      opacity: 0 // Hacemos invisibles las etiquetas del eje X
+                      fontSize: 10 // Tamaño más pequeño para las etiquetas
                     }
                   }}
                   bezier
@@ -521,10 +520,10 @@ export default function HomeScreen() {
                   withVerticalLines={false}
                   withInnerLines={false}
                   yAxisInterval={1}
-                  verticalLabelRotation={0}
+                  verticalLabelRotation={30} // Rotación para mejor legibilidad
                   // Invertimos el eje Y manualmente
-                  fromNumber={16}
-                  toNumber={1}
+                  fromNumber={Math.max(...championshipPositionData.datasets[0].data) + 2 || 16}
+                  toNumber={Math.min(...championshipPositionData.datasets[0].data) - 2 || 1}
                   getDotColor={(dataPoint, dataPointIndex) => {
                     const position = championshipPositionData.datasets[0].data[dataPointIndex];
                     if (position === 1) return '#FFD700'; // Oro
@@ -533,55 +532,38 @@ export default function HomeScreen() {
                     return colors.primary;
                   }}
                   formatTooltipY={(value: number) => `${value}${value === 1 ? 'er' : 'º'}`}
-                  // Personalizamos el tooltip para mostrar el nombre de la carrera
-                  decorator={() => (
-                    <View style={{ width: 0, height: 0 }} /> // Esto es necesario para activar los tooltips
-                  )}
-                  getDotProps={(dataPoint, dataPointIndex) => {
-                    return {
-                      r: "6",
-                      strokeWidth: "2",
-                      stroke: colors.card,
-                      // Añadimos etiqueta con el nombre de la carrera
-                      children: (
-                        <View style={styles.dotLabelContainer}>
-                          <Text style={[styles.dotLabelText, { color: colors.text }]}>
-                            {championshipPositionData.raceNames[dataPointIndex]}
-                          </Text>
-                        </View>
-                      )
-                    };
-                  }}
                 />
-                <View style={styles.raceNamesContainer}>
-                  {championshipPositionData.raceNames.map((name: string, index: number) => (
-                    <Text key={index} style={[styles.raceNameLabel, { color: colors.textSecondary }]}>
-                      {index + 1}. {name}
-                    </Text>
-                  ))}
-                </View>
               </Card>
             )}
 
             {positionData && (
               <Card style={styles.chartCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Posiciones en Carrera</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    Posiciones en Carrera
+                  </Text>
                   <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
                 </View>
 
-                <BarChart
-                  data={positionData}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={chartConfig}
-                  style={styles.chart}
-                  showValuesOnTopOfBars
-                  fromZero
-                  segments={4}
-                  yAxisLabel=""
-                  yAxisSuffix=""
-                />
+                {/* ScrollView horizontal para el gráfico */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  contentContainerStyle={styles.chartScrollContainer}
+                >
+                  <BarChart
+                    data={positionData}
+                    width={Math.max(screenWidth * 1.5, positionData.labels.length * 60)} // Ajusta el ancho según la cantidad de datos
+                    height={220}
+                    chartConfig={chartConfig}
+                    style={styles.chart}
+                    showValuesOnTopOfBars
+                    fromZero
+                    segments={4}
+                    yAxisLabel=""
+                    yAxisSuffix="º"
+                  />
+                </ScrollView>
               </Card>
             )}
 
@@ -716,6 +698,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  chartScrollContainer: {
+    paddingRight: 16, // Espacio adicional al final
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 16,
   },
   cardTitle: {
     fontSize: 18,
