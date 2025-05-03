@@ -35,10 +35,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="circuits"
+        name="races"
         options={{
-          title: 'Circuitos',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="map-marker" size={24} color={color} />,
+          title: 'Calendario',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="calendar" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
