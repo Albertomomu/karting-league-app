@@ -8,9 +8,16 @@ import Card from '@/components/Card';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { supabase, Race, RaceResult, LapTime, Pilot } from '@/lib/supabase';
+import { supabase, Race, RaceResult, LapTime, Pilot, Session } from '@/lib/supabase';
+import { useRouter } from 'expo-router';
 
 const screenWidth = Dimensions.get('window').width;
+
+type RaceResultWithRelations = RaceResult & {
+  race: Race;
+  pilot: Pilot;
+  session: Session;
+};
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -22,9 +29,10 @@ export default function HomeScreen() {
   const [lapTimeData, setLapTimeData] = useState<any>(null);
   const [positionData, setPositionData] = useState<any>(null);
   const [championshipPositionData, setChampionshipPositionData] = useState<any>(null);
+  const [results, setResults] = useState<RaceResultWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
@@ -316,6 +324,49 @@ export default function HomeScreen() {
     },
   };
 
+  useEffect(() => {
+    async function fetchResults() {
+      setLoading(true);
+      setError(null);
+      try {
+        // Trae los últimos resultados con join a carrera, piloto y sesión
+        const { data, error } = await supabase
+          .from('race_result')
+          .select(`
+            *,
+            race (*),
+            pilot (*),
+            session (*)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(12);
+
+        if (error) throw error;
+
+        setResults(data || []);
+      } catch (err) {
+        setError('Error al cargar los resultados.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchResults();
+  }, []);
+
+    // Filtra para quitar sesiones de clasificación
+    const filteredResults = results.filter(
+      (result) =>
+        result.session &&
+        !/clasificaci[oó]n|qualifying/i.test(result.session.name)
+    );
+  
+    const formatRaceDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return format(date, "d 'de' MMMM, yyyy", { locale: es });
+    };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Karting League" showBackButton={false} />
@@ -535,54 +586,80 @@ export default function HomeScreen() {
             )}
 
             <View style={styles.recentResultsSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Últimos Resultados</Text>
-                <TouchableOpacity style={styles.viewAllButton}>
-                  <Text style={[styles.viewAllText, { color: colors.primary }]}>Ver todos</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={24} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+                Últimos resultados
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/races')}>
+                <Text style={styles.seeAllText}>Ver todos</Text>
+              </TouchableOpacity>
+            </View>
 
-              {recentResults.length > 0 ? (
-                recentResults.map((result) => (
-                  <Card key={result.id} style={styles.resultCard}>
-                    <View style={styles.resultHeader}>
-                      <Text style={[styles.resultCircuit, { color: colors.textSecondary }]}>
-                        {result.race?.circuit?.name || 'Unknown Circuit'}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Cargando resultados...
+                </Text>
+              </View>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+              </View>
+            ) : filteredResults.length === 0 ? (
+              <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
+                No hay resultados recientes disponibles.
+              </Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.resultsScroll}>
+                {filteredResults.map((result) => (
+                  <TouchableOpacity
+                    key={result.id}
+                    onPress={() => router.push(`/race/${result.race_id}`)}
+                    activeOpacity={0.85}
+                  >
+                    <Card style={styles.resultCard}>
+                      <Text style={[styles.raceName, { color: colors.text }]} numberOfLines={1}>
+                        {result.race?.name}
                       </Text>
-                      <Text style={[styles.resultSession, { color: colors.primary }]}>
+                      <Text style={[styles.sessionName, { color: colors.primary }]}>
                         {result.session?.name}
                       </Text>
-                    </View>
-                    <View style={styles.resultContent}>
-                      <View style={styles.resultStats}>
-                        <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Posición</Text>
-                          <Text style={[styles.resultStatValue, { color: colors.text }]}>
-                            {result.race_position || '-'}
+                      <View style={styles.resultRow}>
+                        <Text style={[styles.position, { color: colors.primary }]}>
+                          {result.race_position}
+                        </Text>
+                        <View style={styles.pilotInfo}>
+                          <Text style={[styles.pilotName, { color: colors.text }]}>
+                            {result.pilot?.name}
                           </Text>
-                        </View>
-                        <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Puntos</Text>
-                          <Text style={[styles.resultStatValue, { color: colors.text }]}>
-                            {result.points || '0'}
-                          </Text>
-                        </View>
-                        <View style={styles.resultStat}>
-                          <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>Mejor vuelta</Text>
-                          <Text style={[styles.resultStatValue, { color: colors.text }]}>
-                            {result.best_lap || '-'}
-                          </Text>
+                          {result.pilot?.team && (
+                            <Text style={[styles.teamName, { color: colors.textSecondary }]}>
+                              {result.pilot.team}
+                            </Text>
+                          )}
                         </View>
                       </View>
-                    </View>
-                  </Card>
-                ))
-              ) : (
-                <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
-                  No hay resultados disponibles
-                </Text>
-              )}
+                      <View style={styles.resultDetailsRow}>
+                        <MaterialCommunityIcons name="calendar" size={16} color={colors.textSecondary} />
+                        <Text style={[styles.resultDate, { color: colors.textSecondary }]}>
+                          {result.race?.date ? formatRaceDate(result.race.date) : ''}
+                        </Text>
+                        <MaterialCommunityIcons
+                          name="star"
+                          size={16}
+                          color={colors.warning}
+                          style={{ marginLeft: 12 }}
+                        />
+                        <Text style={[styles.points, { color: colors.text }]}>
+                          {result.points ?? 0}
+                        </Text>
+                      </View>
+                    </Card>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
             </View>
           </>
         )}
@@ -725,8 +802,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  seeAllText: {
+    fontSize: 15,
+    color: '#007AFF',
     fontWeight: '600',
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  seeAllIcon: {
+    marginLeft: 4,
+  },
+  resultsScroll: {
+    paddingLeft: 16,
+    paddingBottom: 16,
   },
   viewAllButton: {
     flexDirection: 'row',
@@ -738,7 +831,10 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   resultCard: {
-    marginBottom: 12,
+    width: 240,
+    marginRight: 14,
+    padding: 14,
+    borderRadius: 18,
   },
   resultHeader: {
     flexDirection: 'row',
@@ -789,5 +885,52 @@ const styles = StyleSheet.create({
   dotLabelText: {
     fontSize: 10,
     textAlign: 'center',
+  },
+  sessionName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  pilotInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  pilotName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  teamName: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  resultDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  resultDate: {
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  points: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  position: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    width: 36,
+    textAlign: 'center',
+  },
+  noDataText: {
+    padding: 24,
+    textAlign: 'center',
+    fontSize: 16,
   },
 });
