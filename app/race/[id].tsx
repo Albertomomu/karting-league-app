@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
@@ -21,7 +21,6 @@ type RaceResultWithSession = RaceResult & {
   session: Session;
 };
 
-
 export default function RaceDetailsScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams();
@@ -29,6 +28,9 @@ export default function RaceDetailsScreen() {
   const [race, setRace] = useState<Race | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // --- MODIFICACIÓN: Estado para la sesión seleccionada
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchRaceAndResults() {
@@ -69,13 +71,19 @@ export default function RaceDetailsScreen() {
     fetchRaceAndResults();
   }, [id]);
 
-  // Agrupar resultados por sesión
-  const groupedResults = results.reduce((acc, result) => {
-    const sessionName = result.session?.name || 'Otra sesión';
-    if (!acc[sessionName]) acc[sessionName] = [];
-    acc[sessionName].push(result);
-    return acc;
-  }, {} as Record<string, RaceResultWithSession[]>);
+  // --- MODIFICACIÓN: Obtener sesiones únicas
+  const sessions = Array.from(
+    new Map(results.map(r => [r.session?.id, r.session])).values()
+  ).filter(Boolean).reverse() as Session[];  
+
+  // --- MODIFICACIÓN: Seleccionar la primera sesión por defecto
+  useEffect(() => {
+    if (sessions.length > 0) {
+      setSelectedSessionId((prev) =>
+        sessions.some((s) => s.id === prev) ? prev : sessions[0].id
+      );
+    }
+  }, [results]);
 
   const formatRaceDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -115,18 +123,48 @@ export default function RaceDetailsScreen() {
             </Card>
           )}
 
-          {Object.entries(groupedResults).length === 0 ? (
-            <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
-              No hay resultados disponibles para esta carrera.
-            </Text>
-          ) : (
-            Object.entries(groupedResults).map(([sessionName, sessionResults]) => (
-              <View key={sessionName} style={styles.sessionSection}>
-                <Text style={[styles.sessionTitle, { color: colors.primary }]}>
-                  {sessionName}
-                </Text>
-                <View style={styles.sessionResults}>
-                  {sessionResults.map(result => (
+          {/* --- MODIFICACIÓN: Selector horizontal de sesiones --- */}
+          {sessions.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.sessionSelector}
+              contentContainerStyle={{ paddingVertical: 10 }}
+            >
+              {sessions.map((session) => (
+                <TouchableOpacity
+                  key={session.id}
+                  style={[
+                    styles.sessionButton,
+                    selectedSessionId === session.id && {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                  onPress={() => setSelectedSessionId(session.id)}
+                >
+                  <Text
+                    style={[
+                      styles.sessionButtonText,
+                      selectedSessionId === session.id && { color: '#fff' },
+                    ]}
+                  >
+                    {session.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* --- MODIFICACIÓN: Mostrar solo la sesión seleccionada --- */}
+          {selectedSessionId ? (
+            <View style={styles.sessionSection}>
+              <Text style={[styles.sessionTitle, { color: colors.primary }]}>
+                {sessions.find(s => s.id === selectedSessionId)?.name}
+              </Text>
+              <View style={styles.sessionResults}>
+                {results
+                  .filter(result => result.session?.id === selectedSessionId)
+                  .map(result => (
                     <Card key={result.id} style={styles.resultCard}>
                       <View style={styles.resultRow}>
                         <Text style={[styles.position, { color: colors.primary }]}>
@@ -169,9 +207,12 @@ export default function RaceDetailsScreen() {
                       </View>
                     </Card>
                   ))}
-                </View>
               </View>
-            ))
+            </View>
+          ) : (
+            <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
+              No hay resultados disponibles para esta sesión.
+            </Text>
           )}
         </ScrollView>
       )}
@@ -232,6 +273,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 20,
     fontSize: 16,
+  },
+  sessionSelector: {
+    flexDirection: 'row',
+    marginVertical: 8,
+    marginBottom: 18,
+  },
+  sessionButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+  },
+  sessionButtonText: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '600',
   },
   sessionSection: {
     marginBottom: 28,
@@ -294,4 +352,3 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
 });
-
