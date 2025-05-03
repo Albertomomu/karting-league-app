@@ -8,7 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, Season, Race } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
 export default function RacesScreen() {
   const { colors } = useTheme();
@@ -19,7 +19,7 @@ export default function RacesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const navigation = useNavigation();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchSeasons() {
@@ -182,7 +182,7 @@ export default function RacesScreen() {
               {status.status === 'completed' && (
                 <TouchableOpacity 
                   style={[styles.resultsButton, { backgroundColor: colors.primary }]}
-                  onPress={() => navigation.navigate('RaceDetailsScreen', { raceId: race.id })}
+                  onPress={() => router.push(`/race/${race.id}`)}
                 >
                   <Text style={styles.resultsButtonText}>Ver resultados</Text>
                   <MaterialCommunityIcons 
