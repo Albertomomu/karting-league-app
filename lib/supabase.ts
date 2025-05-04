@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
 // Use environment variables from .env file
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://wjkvpvfvqmmhcfonqwma.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indqa3ZwdmZ2cW1taGNmb25xd21hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA2ODY2NzMsImV4cCI6MjA1NjI2MjY3M30.3EFJnf1-xoswGW1BThtpwHfwGWXOr058UdkHU4_kWPQ';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 // Custom storage implementation using SecureStore
 const SecureStoreAdapter = {
@@ -19,7 +19,7 @@ const SecureStoreAdapter = {
   },
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
   auth: {
     storage: SecureStoreAdapter,
     autoRefreshToken: true,
