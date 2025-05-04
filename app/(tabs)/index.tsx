@@ -328,9 +328,9 @@ export default function HomeScreen() {
     async function fetchResults() {
       setLoading(true);
       setError(null);
+      
       try {
-        // Trae los últimos resultados con join a carrera, piloto y sesión
-        const { data, error } = await supabase
+        let query = supabase
           .from('race_result')
           .select(`
             *,
@@ -341,8 +341,13 @@ export default function HomeScreen() {
           .order('created_at', { ascending: false })
           .limit(12);
 
-        if (error) throw error;
+        if (pilot) {
+          query = query.eq('pilot_id', pilot?.id);
+        }
 
+        const { data, error } = await query;
+
+        if (error) throw error;
         setResults(data || []);
       } catch (err) {
         setError('Error al cargar los resultados.');
@@ -353,7 +358,8 @@ export default function HomeScreen() {
     }
 
     fetchResults();
-  }, []);
+  }, [pilot]); // Ahora depende de pilotId
+
 
     // Filtra para quitar sesiones de clasificación
     const filteredResults = results.filter(
