@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
-import { LineChart, BarChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-chart-kit';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase, Race, RaceResult, LapTime, Pilot, Session } from '@/lib/supabase';
@@ -263,7 +263,7 @@ export default function HomeScreen() {
             raceName: race.name,
             standings: Object.entries(accumulatedPoints)
               .map(([pilot_id, totalPoints]) => ({ pilot_id, totalPoints }))
-              .sort((a, b) => b.totalPoints - a.totalPoints) // Orden descendente por puntos
+              .sort((a, b) => b.totalPoints - a.totalPoints)
           });
         }
 
@@ -276,7 +276,7 @@ export default function HomeScreen() {
           return {
             date: raceData.date,
             raceName: raceData.raceName,
-            position: pilotStanding !== -1 ? pilotStanding + 1 : null // +1 porque el índice empieza en 0
+            position: pilotStanding !== -1 ? pilotStanding + 1 : null
           };
         }).filter(data => data.position !== null);
 
@@ -328,7 +328,7 @@ export default function HomeScreen() {
     async function fetchResults() {
       setLoading(true);
       setError(null);
-      
+
       try {
         let query = supabase
           .from('race_result')
@@ -358,20 +358,19 @@ export default function HomeScreen() {
     }
 
     fetchResults();
-  }, [pilot]); // Ahora depende de pilotId
+  }, [pilot]);
 
+  // Filtra para quitar sesiones de clasificación
+  const filteredResults = results.filter(
+    (result) =>
+      result.session &&
+      !/clasificaci[oó]n|qualifying/i.test(result.session.name)
+  );
 
-    // Filtra para quitar sesiones de clasificación
-    const filteredResults = results.filter(
-      (result) =>
-        result.session &&
-        !/clasificaci[oó]n|qualifying/i.test(result.session.name)
-    );
-  
-    const formatRaceDate = (dateString: string) => {
-      const date = new Date(dateString);
-      return format(date, "d 'de' MMMM, yyyy", { locale: es });
-    };
+  const formatRaceDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, "d 'de' MMMM, yyyy", { locale: es });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -412,7 +411,6 @@ export default function HomeScreen() {
                   <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima carrera</Text>
                   <MaterialCommunityIcons name="calendar" size={24} color={colors.primary} />
                 </View>
-
                 <View style={styles.nextRaceContent}>
                   <Image
                     source={{ uri: nextRace?.circuit?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }}
@@ -438,24 +436,21 @@ export default function HomeScreen() {
                   <Text style={[styles.cardTitle, { color: colors.text }]}>Estadísticas generales</Text>
                   <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
                 </View>
-
                 <View style={styles.statsGrid}>
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="flag" size={24} color={colors.primary} />
+                      <MaterialCommunityIcons name="flag-checkered" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalRaces}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
                   </View>
-
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
+                      <MaterialCommunityIcons name="podium" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podiums</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podios</Text>
                   </View>
-
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
                       <MaterialCommunityIcons name="trophy" size={24} color={colors.primary} />
@@ -463,192 +458,117 @@ export default function HomeScreen() {
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Victorias</Text>
                   </View>
-
                   <View style={styles.statItem}>
                     <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor posición</Text>
-                  </View>
-
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.polePosition}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poles</Text>
-                  </View>
-
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="trending-up" size={24} color={colors.primary} />
+                      <MaterialCommunityIcons name="medal-outline" size={24} color={colors.primary} />
                     </View>
                     <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalPoints}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
                   </View>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <MaterialCommunityIcons name="numeric-1-circle" size={24} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Posición</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+                      <MaterialCommunityIcons name="flag-outline" size={24} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.polePosition}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poles</Text>
+                  </View>
                 </View>
-              </Card>
-            )}
-
-            {championshipPositionData && (
-              <Card style={styles.chartCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Posición en el Campeonato</Text>
-                  <MaterialCommunityIcons name="trending-up" size={24} color={colors.primary} />
-                </View>
-
-                <LineChart
-                  data={{
-                    labels: championshipPositionData.labels, // Usamos las fechas como labels
-                    datasets: [{
-                      data: championshipPositionData.datasets[0].data
-                    }]
-                  }}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={{
-                    ...chartConfig,
-                    formatYLabel: (value: string) => {
-                      const position = parseInt(value);
-                      return `${position}${position === 1 ? 'er' : 'º'}`;
-                    },
-                    propsForLabels: {
-                      ...chartConfig.propsForLabels,
-                      fontSize: 10 // Tamaño más pequeño para las etiquetas
-                    }
-                  }}
-                  bezier
-                  style={styles.chart}
-                  fromZero={false}
-                  yAxisLabel=""
-                  segments={4}
-                  withVerticalLines={false}
-                  withInnerLines={false}
-                  yAxisInterval={1}
-                  verticalLabelRotation={30} // Rotación para mejor legibilidad
-                  // Invertimos el eje Y manualmente
-                  fromNumber={Math.max(...championshipPositionData.datasets[0].data) + 2 || 16}
-                  toNumber={Math.min(...championshipPositionData.datasets[0].data) - 2 || 1}
-                  getDotColor={(dataPoint, dataPointIndex) => {
-                    const position = championshipPositionData.datasets[0].data[dataPointIndex];
-                    if (position === 1) return '#FFD700'; // Oro
-                    if (position === 2) return '#C0C0C0'; // Plata
-                    if (position === 3) return '#CD7F32'; // Bronce
-                    return colors.primary;
-                  }}
-                  formatTooltipY={(value: number) => `${value}${value === 1 ? 'er' : 'º'}`}
-                />
               </Card>
             )}
 
             {positionData && (
-              <Card style={styles.chartCard}>
+              <Card style={styles.graphCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    Posiciones en Carrera
-                  </Text>
-                  <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión carreras</Text>
+                  <MaterialCommunityIcons name="chart-line" size={24} color={colors.primary} />
                 </View>
-
-                {/* ScrollView horizontal para el gráfico */}
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={true}
-                  contentContainerStyle={styles.chartScrollContainer}
-                >
-                  <BarChart
-                    data={positionData}
-                    width={Math.max(screenWidth * 1.5, positionData.labels.length * 60)} // Ajusta el ancho según la cantidad de datos
-                    height={220}
-                    chartConfig={chartConfig}
-                    style={styles.chart}
-                    showValuesOnTopOfBars
-                    fromZero
-                    segments={4}
-                    yAxisLabel=""
-                    yAxisSuffix="º"
-                  />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View>
+                    <LineChart
+                      data={positionData}
+                      width={Math.max(screenWidth, positionData.labels.length * 60)}
+                      height={180}
+                      chartConfig={chartConfig}
+                      bezier
+                      style={{ marginLeft: -16, marginVertical: 8 }}
+                      fromZero
+                      yAxisLabel=""
+                      yLabelsOffset={8}
+                      withVerticalLines={false}
+                      withHorizontalLines={true}
+                      segments={5}
+                      formatYLabel={y => `${y}`}
+                    />
+                  </View>
                 </ScrollView>
               </Card>
             )}
 
-            <View style={styles.recentResultsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                Últimos resultados
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/races')}>
-                <Text style={styles.seeAllText}>Ver todos</Text>
-              </TouchableOpacity>
-            </View>
+            {championshipPositionData && (
+              <Card style={styles.graphCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión campeonato</Text>
+                  <MaterialCommunityIcons name="trophy-outline" size={24} color={colors.primary} />
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View>
+                    <LineChart
+                      data={championshipPositionData}
+                      width={Math.max(screenWidth, championshipPositionData.labels.length * 60)}
+                      height={180}
+                      chartConfig={chartConfig}
+                      bezier
+                      style={{ marginLeft: -16, marginVertical: 8 }}
+                      fromZero
+                      yAxisLabel=""
+                      yLabelsOffset={8}
+                      withVerticalLines={false}
+                      withHorizontalLines={true}
+                      segments={5}
+                      formatYLabel={y => `${y}`}
+                    />
+                  </View>
+                </ScrollView>
+              </Card>
+            )}
 
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                  Cargando resultados...
-                </Text>
+            <Card style={styles.resultsCard}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Últimos resultados</Text>
+                <MaterialCommunityIcons name="history" size={24} color={colors.primary} />
               </View>
-            ) : error ? (
-              <View style={styles.errorContainer}>
-                <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-              </View>
-            ) : filteredResults.length === 0 ? (
-              <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
-                No hay resultados recientes disponibles.
-              </Text>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.resultsScroll}>
-                {filteredResults.map((result) => (
+              <View style={styles.resultsList}>
+                {filteredResults.slice(0, 5).map((result, idx) => (
                   <TouchableOpacity
                     key={result.id}
-                    onPress={() => router.push(`/race/${result.race_id}`)}
-                    activeOpacity={0.85}
+                    style={[styles.resultItem, idx === filteredResults.length - 1 && styles.lastResultItem]}
+                    onPress={() => router.push(`/race/${result.race.id}`)}
                   >
-                    <Card style={styles.resultCard}>
-                      <Text style={[styles.raceName, { color: colors.text }]} numberOfLines={1}>
+                    <View style={styles.resultInfo}>
+                      <Text style={[styles.resultRaceName, { color: colors.text }]} numberOfLines={1}>
                         {result.race?.name}
                       </Text>
-                      <Text style={[styles.sessionName, { color: colors.primary }]}>
-                        {result.session?.name}
+                      <Text style={[styles.resultDate, { color: colors.textSecondary }]}>
+                        {formatRaceDate(result.race?.date)}
                       </Text>
-                      <View style={styles.resultRow}>
-                        <Text style={[styles.position, { color: colors.primary }]}>
-                          {result.race_position}
-                        </Text>
-                        <View style={styles.pilotInfo}>
-                          <Text style={[styles.pilotName, { color: colors.text }]}>
-                            {result.pilot?.name}
-                          </Text>
-                          {result.pilot?.team && (
-                            <Text style={[styles.teamName, { color: colors.textSecondary }]}>
-                              {result.pilot.team.name}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-                      <View style={styles.resultDetailsRow}>
-                        <MaterialCommunityIcons name="calendar" size={16} color={colors.textSecondary} />
-                        <Text style={[styles.resultDate, { color: colors.textSecondary }]}>
-                          {result.race?.date ? formatRaceDate(result.race.date) : ''}
-                        </Text>
-                        <MaterialCommunityIcons
-                          name="star"
-                          size={16}
-                          color={colors.warning}
-                          style={{ marginLeft: 12 }}
-                        />
-                        <Text style={[styles.points, { color: colors.text }]}>
-                          {result.points ?? 0}
-                        </Text>
-                      </View>
-                    </Card>
+                    </View>
+                    <View style={styles.resultPositionContainer}>
+                      <Text style={[styles.resultPosition, { color: colors.primary }]}>
+                        {result.race_position}
+                      </Text>
+                      <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.primary} />
+                    </View>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
-            )}
-            </View>
+              </View>
+            </Card>
           </>
         )}
       </ScrollView>
@@ -664,263 +584,148 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 100 : 80,
+    padding: 16,
+    paddingBottom: 8, // Menos espacio blanco al final
   },
   welcomeSection: {
-    marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   welcomeText: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: 'bold',
   },
   subtitle: {
     fontSize: 16,
     marginTop: 4,
   },
   loadingContainer: {
-    padding: 20,
+    flex: 1,
     alignItems: 'center',
+    marginTop: 32,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 16,
   },
   errorContainer: {
-    padding: 20,
+    flex: 1,
     alignItems: 'center',
+    marginTop: 32,
   },
   errorText: {
     fontSize: 16,
-    textAlign: 'center',
-    color: 'red',
+    fontWeight: 'bold',
   },
   nextRaceCard: {
-    marginBottom: 24,
+    marginBottom: 18,
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  chartScrollContainer: {
-    paddingRight: 16, // Espacio adicional al final
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
+    marginBottom: 8,
+    justifyContent: 'space-between',
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   nextRaceContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   circuitImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginRight: 16,
+    width: 70,
+    height: 70,
+    borderRadius: 12,
+    marginRight: 12,
+    backgroundColor: '#eee',
   },
   raceInfo: {
     flex: 1,
   },
   raceName: {
     fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: 'bold',
   },
   raceCircuit: {
     fontSize: 14,
-    marginBottom: 4,
+    marginTop: 2,
   },
   raceDate: {
     fontSize: 14,
-    fontWeight: '500',
+    marginTop: 4,
+    fontWeight: 'bold',
   },
   statsCard: {
-    marginBottom: 24,
+    marginBottom: 18,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginTop: 8,
   },
   statItem: {
     width: '30%',
     alignItems: 'center',
-    marginBottom: 16,
+    marginVertical: 8,
   },
   statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   statValue: {
     fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-  },
-  chartCard: {
-    marginBottom: 24,
-  },
-  raceNamesContainer: {
-    marginTop: 8,
-    paddingHorizontal: 8,
-  },
-  raceNameLabel: {
-    fontSize: 10,
-    marginBottom: 2,
-  },
-  recentResultsSection: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
     fontWeight: 'bold',
   },
-  seeAllText: {
-    fontSize: 15,
-    color: '#007AFF',
-    fontWeight: '600',
+  statLabel: {
+    fontSize: 13,
+    textAlign: 'center',
   },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  graphCard: {
+    marginBottom: 18,
   },
-  seeAllIcon: {
-    marginLeft: 4,
+  resultsCard: {
+    marginBottom: 0, // Elimina espacio blanco debajo
+    paddingBottom: 4, // Ajusta para que quede pegado al final
   },
-  resultsScroll: {
-    paddingLeft: 16,
-    paddingBottom: 16,
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginRight: 4,
-  },
-  resultCard: {
-    width: 240,
-    marginRight: 14,
-    padding: 14,
-    borderRadius: 18,
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  resultCircuit: {
-    fontSize: 14,
-  },
-  resultSession: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  resultContent: {
+  resultsList: {
     marginTop: 8,
   },
-  resultStats: {
+  resultItem: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ddd',
     justifyContent: 'space-between',
   },
-  resultStat: {
-    alignItems: 'center',
+  lastResultItem: {
+    borderBottomWidth: 0,
   },
-  resultStatLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  resultStatValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  noResultsText: {
-    textAlign: 'center',
-    padding: 16,
-  },
-  dotLabelContainer: {
-    position: 'absolute',
-    top: -30, // Ajusta esta posición según necesites
-    width: 120,
-    padding: 4,
-    borderRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  dotLabelText: {
-    fontSize: 10,
-    textAlign: 'center',
-  },
-  sessionName: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  pilotInfo: {
+  resultInfo: {
     flex: 1,
-    marginLeft: 12,
   },
-  pilotName: {
+  resultRaceName: {
     fontSize: 15,
-    fontWeight: '600',
-  },
-  teamName: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  resultDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
+    fontWeight: 'bold',
   },
   resultDate: {
     fontSize: 13,
-    marginLeft: 4,
+    marginTop: 2,
   },
-  points: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  resultRow: {
+  resultPositionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginLeft: 10,
   },
-  position: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    width: 36,
-    textAlign: 'center',
-  },
-  noDataText: {
-    padding: 24,
-    textAlign: 'center',
+  resultPosition: {
     fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 4,
   },
 });
