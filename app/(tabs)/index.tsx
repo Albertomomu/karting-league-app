@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase, Race, RaceResult, LapTime, Pilot, Session } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -316,6 +317,111 @@ export default function HomeScreen() {
     return format(date, "d 'de' MMMM, yyyy", { locale: es });
   };
 
+  const SkeletonLoader = ({ style, width, height }) => {
+    const { colors } = useTheme();
+    return (
+      <View
+        style={[
+          {
+            width,
+            height,
+            backgroundColor: colors.card,
+            borderRadius: 8,
+            overflow: 'hidden',
+          },
+          style,
+        ]}
+      >
+        <LinearGradient
+          colors={[colors.card, colors.primaryLight, colors.card]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            transform: [{ translateX: -width }],
+          }}
+        />
+      </View>
+    );
+  };
+
+  const NextRaceCardSkeleton = () => {
+    const { colors } = useTheme();
+    return (
+      <Card style={styles.nextRaceCard}>
+        <View style={styles.cardHeader}>
+          <SkeletonLoader width={120} height={24} />
+          <SkeletonLoader width={24} height={24} style={{ borderRadius: 12 }} />
+        </View>
+        <View style={styles.nextRaceContent}>
+          <SkeletonLoader width={70} height={70} style={{ borderRadius: 12 }} />
+          <View style={styles.raceInfo}>
+            <SkeletonLoader width={200} height={20} style={{ marginBottom: 8 }} />
+            <SkeletonLoader width={150} height={16} style={{ marginBottom: 6 }} />
+            <SkeletonLoader width={180} height={16} />
+          </View>
+        </View>
+      </Card>
+    );
+  };
+
+  const StatsCardSkeleton = () => {
+    return (
+      <Card style={styles.statsCard}>
+        <View style={styles.cardHeader}>
+          <SkeletonLoader width={150} height={24} />
+          <SkeletonLoader width={24} height={24} style={{ borderRadius: 12 }} />
+        </View>
+        <View style={styles.statsGrid}>
+          {[...Array(6)].map((_, index) => (
+            <View key={index} style={styles.statItem}>
+              <SkeletonLoader width={40} height={40} style={{ borderRadius: 20, marginBottom: 8 }} />
+              <SkeletonLoader width={30} height={20} style={{ marginBottom: 4 }} />
+              <SkeletonLoader width={60} height={16} />
+            </View>
+          ))}
+        </View>
+      </Card>
+    );
+  };
+
+  const ChartCardSkeleton = () => {
+    return (
+      <Card style={styles.graphCard}>
+        <View style={styles.cardHeader}>
+          <SkeletonLoader width={140} height={24} />
+          <SkeletonLoader width={24} height={24} style={{ borderRadius: 12 }} />
+        </View>
+        <SkeletonLoader width={screenWidth - 64} height={180} style={{ marginTop: 8 }} />
+      </Card>
+    );
+  };
+
+  const ResultsCardSkeleton = () => {
+    return (
+      <Card style={styles.resultsCard}>
+        <View style={styles.cardHeader}>
+          <SkeletonLoader width={140} height={24} />
+          <SkeletonLoader width={24} height={24} style={{ borderRadius: 12 }} />
+        </View>
+        <View style={styles.resultsList}>
+          {[...Array(5)].map((_, idx) => (
+            <View
+              key={idx}
+              style={[styles.resultItem, idx === 4 && styles.lastResultItem]}
+            >
+              <View style={styles.resultInfo}>
+                <SkeletonLoader width={200} height={20} style={{ marginBottom: 4 }} />
+                <SkeletonLoader width={150} height={16} />
+              </View>
+              <SkeletonLoader width={40} height={30} style={{ borderRadius: 4 }} />
+            </View>
+          ))}
+        </View>
+      </Card>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Karting League" showBackButton={false} />
@@ -337,12 +443,13 @@ export default function HomeScreen() {
         )}
 
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-              Cargando...
-            </Text>
-          </View>
+          <>
+            <NextRaceCardSkeleton />
+            <StatsCardSkeleton />
+            <ChartCardSkeleton />
+            <ChartCardSkeleton />
+            <ResultsCardSkeleton />
+          </>
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
