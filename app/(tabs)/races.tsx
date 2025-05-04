@@ -10,12 +10,22 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'expo-router';
 
+type Circuit = {
+  id: string;
+  name: string;
+  location?: string;
+};
+
+type RaceWithCircuit = Race & {
+  circuit?: Circuit;
+};
+
 export default function RacesScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [races, setRaces] = useState<Race[]>([]);
+  const [races, setRaces] = useState<RaceWithCircuit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +66,7 @@ export default function RacesScreen() {
         setLoading(true);
         const { data, error } = await supabase
           .from('race')
-          .select('*')
+          .select('*, circuit (*)') // <-- JOIN circuit aquí
           .eq('season_id', selectedSeason)
           .order('date', { ascending: true });
 
@@ -162,7 +172,7 @@ export default function RacesScreen() {
                     color={colors.textSecondary} 
                   />
                   <Text style={[styles.detailText, { color: colors.text }]}>
-                    {race.circuit}
+                    {race.circuit?.location || 'Sin localización'}
                   </Text>
                 </View>
                 
@@ -178,7 +188,6 @@ export default function RacesScreen() {
                 </View>
               </View>
               
-              // En RacesScreen.tsx, modifica la parte del renderRaces:
               {status.status === 'completed' && (
                 <TouchableOpacity 
                   style={[styles.resultsButton, { backgroundColor: colors.primary }]}

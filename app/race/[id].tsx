@@ -10,10 +10,20 @@ import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 
 // Tipos
+type Circuit = {
+  id: string;
+  name: string;
+  location?: string;
+};
+
 type Session = {
   id: string;
   name: string;
   race_id: string;
+};
+
+type RaceWithCircuit = Race & {
+  circuit?: Circuit;
 };
 
 type RaceResultWithSession = RaceResult & {
@@ -25,7 +35,7 @@ export default function RaceDetailsScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams();
   const [results, setResults] = useState<RaceResultWithSession[]>([]);
-  const [race, setRace] = useState<Race | null>(null);
+  const [race, setRace] = useState<RaceWithCircuit | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,10 +47,10 @@ export default function RaceDetailsScreen() {
       setLoading(true);
       setError(null);
       try {
-        // Traer los datos de la carrera
+        // Traer los datos de la carrera junto al circuito
         const { data: raceData, error: raceError } = await supabase
           .from('race')
-          .select('*')
+          .select('*, circuit (*)')
           .eq('id', id)
           .single();
         if (raceError) throw raceError;
@@ -74,7 +84,7 @@ export default function RaceDetailsScreen() {
   // --- MODIFICACIÓN: Obtener sesiones únicas
   const sessions = Array.from(
     new Map(results.map(r => [r.session?.id, r.session])).values()
-  ).filter(Boolean).reverse() as Session[];  
+  ).filter(Boolean).reverse() as Session[];
 
   // --- MODIFICACIÓN: Seleccionar la primera sesión por defecto
   useEffect(() => {
@@ -113,11 +123,15 @@ export default function RaceDetailsScreen() {
               <View style={styles.raceDetails}>
                 <View style={styles.detailRow}>
                   <MaterialCommunityIcons name="map-marker" size={18} color={colors.textSecondary} />
-                  <Text style={[styles.detailText, { color: colors.text }]}>{race.circuit}</Text>
+                  <Text style={[styles.detailText, { color: colors.text }]}>
+                    {race.circuit?.name || 'Sin circuito'}
+                  </Text>
                 </View>
                 <View style={styles.detailRow}>
                   <MaterialCommunityIcons name="calendar" size={18} color={colors.textSecondary} />
-                  <Text style={[styles.detailText, { color: colors.text }]}>{formatRaceDate(race.date)}</Text>
+                  <Text style={[styles.detailText, { color: colors.text }]}>
+                    {formatRaceDate(race.date)}
+                  </Text>
                 </View>
               </View>
             </Card>
