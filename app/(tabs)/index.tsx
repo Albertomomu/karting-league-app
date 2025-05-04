@@ -24,9 +24,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const [pilot, setPilot] = useState<Pilot | null>(null);
   const [nextRace, setNextRace] = useState<Race | null>(null);
-  const [recentResults, setRecentResults] = useState<RaceResult[]>([]);
   const [pilotStats, setPilotStats] = useState<any>(null);
-  const [lapTimeData, setLapTimeData] = useState<any>(null);
   const [positionData, setPositionData] = useState<any>(null);
   const [championshipPositionData, setChampionshipPositionData] = useState<any>(null);
   const [results, setResults] = useState<RaceResultWithRelations[]>([]);
@@ -67,24 +65,6 @@ export default function HomeScreen() {
           setNextRace(raceData);
         }
 
-        // Fetch recent race results for the pilot
-        const { data: resultsData, error: resultsError } = await supabase
-          .from('race_result')
-          .select(`
-            *,
-            race (
-              *,
-              circuit (*)
-            ),
-            session (name)
-          `)
-          .eq('pilot_id', pilotId)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (resultsError) throw resultsError;
-        setRecentResults(resultsData || []);
-
         // Calculate pilot statistics
         const { data: statsData, error: statsError } = await supabase
           .from('race_result')
@@ -115,42 +95,6 @@ export default function HomeScreen() {
           polePosition: processedStats.filter(r => r.session_name?.startsWith('Clasificación') && r.race_position === 1).length
         };
         setPilotStats(stats);
-
-        // Fetching lap times
-        const { data: lapTimesData, error: lapTimesError } = await supabase
-          .from('lap_time')
-          .select(`
-            time,
-            race (
-              date
-            )
-          `)
-          .eq('pilot_id', pilotId);
-
-        type SimpleLapTime = {
-          time: string;
-          race: { date: string } | null;
-        };
-
-        const lapTimes = lapTimesData as unknown as SimpleLapTime[];
-
-        const processedLapTimes = lapTimes
-          .filter(lt => lt.race !== null && lt.time)
-          .map(lt => ({
-            time: lt.time,
-            date: lt.race!.date
-          }));
-
-        setLapTimeData({
-          labels: processedLapTimes.map(lt => format(new Date(lt.date), 'MMM d', { locale: es })),
-          datasets: [{
-            data: processedLapTimes.map(lt => {
-              if (!lt.time) return 0;
-              const [mins, secs] = lt.time.split(':');
-              return parseFloat(mins) * 60 + parseFloat(secs);
-            })
-          }]
-        });
 
         // Fetch position progression data
         const { data: positionsData, error: positionsError } = await supabase
