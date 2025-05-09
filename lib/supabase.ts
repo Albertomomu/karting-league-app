@@ -37,10 +37,22 @@ export type Pilot = {
   role: string | null;
   name: string;
   number: number;
-  team_id: string | null;
   avatar_url: string | null;
   created_at: string;
+};
+
+// PilotTeamSeason
+export type PilotTeamSeason = {
+  id: string;
+  pilot_id: string;
+  team_id: string;
+  season_id: string;
+  league_id: string;
+  created_at: string;
+  pilot?: Pilot;
   team?: Team;
+  league?: League;
+  season?: Season;
 };
 
 // Team
@@ -69,12 +81,12 @@ export type Circuit = {
 export type Race = {
   id: string;
   name: string;
-  season_id: string | null;
   circuit_id: string | null;
   date: string;
   created_at: string;
+  league_id: string | null;
   circuit?: Circuit;
-  season?: Season;
+  league?: League;
 };
 
 // RaceResult
