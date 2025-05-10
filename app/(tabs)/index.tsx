@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import StatsCard from '@/components/StatsCard';
 import LineChartCard from '@/components/LineChartCard';
+import LastResultsCard from '@/components/LastResultsCard';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -490,36 +491,12 @@ export default function HomeScreen() {
               />
             )}
 
-            <Card style={styles.resultsCard}>
-              <View style={styles.cardHeader}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Últimos resultados</Text>
-                <MaterialCommunityIcons name="history" size={24} color={colors.primary} />
-              </View>
-              <View style={styles.resultsList}>
-                {filteredResults.slice(0, 5).map((result, idx) => (
-                  <TouchableOpacity
-                    key={result.id}
-                    style={[styles.resultItem, idx === filteredResults.length - 1 && styles.lastResultItem]}
-                    onPress={() => router.push(`/race/${result.race.id}`)}
-                  >
-                    <View style={styles.resultInfo}>
-                      <Text style={[styles.resultRaceName, { color: colors.text }]} numberOfLines={1}>
-                        {result.race?.name}
-                      </Text>
-                      <Text style={[styles.resultDate, { color: colors.textSecondary }]}>
-                        {formatRaceDate(result.race?.date)}
-                      </Text>
-                    </View>
-                    <View style={styles.resultPositionContainer}>
-                      <Text style={[styles.resultPosition, { color: colors.primary }]}>
-                        {result.race_position}
-                      </Text>
-                      <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.primary} />
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Card>
+            {filteredResults && (
+              <LastResultsCard
+                results={filteredResults}
+                onResultPress={(raceId) => router.push(`/race/${raceId}`)}
+              />
+            )}
           </>
         )}
       </ScrollView>
