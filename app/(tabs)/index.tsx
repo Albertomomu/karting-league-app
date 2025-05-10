@@ -5,12 +5,15 @@ import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
+import NextRaceCard from '@/components/NextRaceCard';
 import { LineChart } from 'react-native-chart-kit';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase, Race, RaceResult, Pilot, Session } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import StatsCard from '@/components/StatsCard';
+import LineChartCard from '@/components/LineChartCard';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -464,137 +467,27 @@ export default function HomeScreen() {
         ) : (
           <>
             {nextRace && (
-              <Card style={styles.nextRaceCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima carrera</Text>
-                  <MaterialCommunityIcons name="calendar" size={24} color={colors.primary} />
-                </View>
-                <View style={styles.nextRaceContent}>
-                  <Image
-                    source={{ uri: nextRace?.circuit?.image_url || 'https://images.unsplash.com/photo-1630925546089-7ac0e8028e9f?q=80&w=2070&auto=format&fit=crop' }}
-                    style={styles.circuitImage}
-                  />
-                  <View style={styles.raceInfo}>
-                    <Text style={[styles.raceName, { color: colors.text }]}>{nextRace.name}</Text>
-                    <Text style={[styles.raceCircuit, { color: colors.textSecondary }]}>
-                      Circuito: {nextRace?.circuit?.name}
-                    </Text>
-                    <Text style={[styles.raceDate, { color: colors.primary }]}>
-                      Fecha: {format(new Date(nextRace.date), "EEEE d 'de' MMMM", { locale: es })
-                        .replace(/^./, l => l.toUpperCase())}
-                    </Text>
-                  </View>
-                </View>
-              </Card>
+              <NextRaceCard race={nextRace as Race & { circuit?: { name?: string; image_url?: string } } } />
             )}
 
             {pilotStats && (
-              <Card style={styles.statsCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Estadísticas generales</Text>
-                  <MaterialCommunityIcons name="medal" size={24} color={colors.primary} />
-                </View>
-                <View style={styles.statsGrid}>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="flag-checkered" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalRaces}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Carreras</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="podium" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.podiums}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Podios</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="trophy" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.wins}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Victorias</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="medal-outline" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.totalPoints}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="numeric-1-circle" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.bestPosition}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mejor Posición</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-                      <MaterialCommunityIcons name="flag-outline" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{pilotStats.polePosition}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poles</Text>
-                  </View>
-                </View>
-              </Card>
+              <StatsCard stats={pilotStats} />
             )}
 
             {positionData && (
-              <Card style={styles.graphCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión carreras</Text>
-                  <MaterialCommunityIcons name="chart-line" size={24} color={colors.primary} />
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View>
-                    <LineChart
-                      data={positionData}
-                      width={Math.max(screenWidth, positionData.labels.length * 60)}
-                      height={180}
-                      chartConfig={chartConfig}
-                      bezier
-                      style={{ marginLeft: -16, marginVertical: 8 }}
-                      fromZero
-                      yAxisLabel=""
-                      yLabelsOffset={8}
-                      withVerticalLines={false}
-                      withHorizontalLines={true}
-                      segments={5}
-                      formatYLabel={y => `${y}`}
-                    />
-                  </View>
-                </ScrollView>
-              </Card>
+              <LineChartCard
+                title="Progresión carreras"
+                icon="chart-line"
+                chartData={positionData}
+              />
             )}
 
             {championshipPositionData && (
-              <Card style={styles.graphCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Progresión campeonato</Text>
-                  <MaterialCommunityIcons name="trophy-outline" size={24} color={colors.primary} />
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View>
-                    <LineChart
-                      data={championshipPositionData}
-                      width={Math.max(screenWidth, championshipPositionData.labels.length * 60)}
-                      height={180}
-                      chartConfig={chartConfig}
-                      bezier
-                      style={{ marginLeft: -16, marginVertical: 8 }}
-                      fromZero
-                      yAxisLabel=""
-                      yLabelsOffset={8}
-                      withVerticalLines={false}
-                      withHorizontalLines={true}
-                      segments={5}
-                      formatYLabel={y => `${y}`}
-                    />
-                  </View>
-                </ScrollView>
-              </Card>
+              <LineChartCard
+                title="Progresión campeonato"
+                icon="trophy-outline"
+                chartData={championshipPositionData}
+              />
             )}
 
             <Card style={styles.resultsCard}>
