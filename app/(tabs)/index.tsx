@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Dimensions, StyleProp, ViewStyle } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ import Card from '@/components/Card';
 import { LineChart } from 'react-native-chart-kit';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { supabase, Race, RaceResult, LapTime, Pilot, Session } from '@/lib/supabase';
+import { supabase, Race, RaceResult, Pilot, Session } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -66,7 +66,13 @@ export default function HomeScreen() {
           setNextRace(raceData);
         }
 
-        // Calculate pilot statistics
+        type RaceResultWithSession = {
+          race_position: number;
+          points: number;
+          best_lap: string | null;
+          session: { name: string } | null;
+        };
+        
         const { data: statsData, error: statsError } = await supabase
           .from('race_result')
           .select(`
@@ -76,7 +82,8 @@ export default function HomeScreen() {
             session_id,
             session (name)
           `)
-          .eq('pilot_id', pilotId);
+          .eq('pilot_id', pilotId)
+          .returns<RaceResultWithSession[]>();
 
         if (statsError) throw statsError;
 
@@ -152,18 +159,12 @@ export default function HomeScreen() {
 
         if (allResultsError) throw allResultsError;
 
-        type ProcessedResult = {
-          pilot_id: string;
-          points: number;
-          race_id: string;
-          date: string;
-        };
-
         const processedResults = (allResultsData as any[]).filter(r => r.race !== null).map(r => ({
           pilot_id: r.pilot_id,
           points: r.points || 0,
           race_id: r.race.id,
-          date: r.race.date
+          date: r.race.date,
+          race_name: r.race.name
         }));
 
         // Agrupamos por carrera (ordenadas por fecha)
@@ -173,7 +174,7 @@ export default function HomeScreen() {
             return {
               id: raceId,
               date: raceData?.date || '',
-              name: raceData?.race?.name || ''
+              name: raceData?.race_name || ''
             };
           })
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -317,7 +318,13 @@ export default function HomeScreen() {
     return format(date, "d 'de' MMMM, yyyy", { locale: es });
   };
 
-  const SkeletonLoader = ({ style, width, height }) => {
+  type SkeletonLoaderProps = {
+    width: number;
+    height: number;
+    style?: StyleProp<ViewStyle>;
+  };
+
+  const SkeletonLoader = ({ style, width, height }: SkeletonLoaderProps) => {
     const { colors } = useTheme();
     return (
       <View
@@ -474,7 +481,7 @@ export default function HomeScreen() {
                     </Text>
                     <Text style={[styles.raceDate, { color: colors.primary }]}>
                       Fecha: {format(new Date(nextRace.date), "EEEE d 'de' MMMM", { locale: es })
-                        .replace(/\b\w/g, l => l.toUpperCase())}
+                        .replace(/^./, l => l.toUpperCase())}
                     </Text>
                   </View>
                 </View>
