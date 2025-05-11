@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
@@ -35,6 +35,8 @@ export default function HomeScreen() {
   const [results, setResults] = useState<RaceResultWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [seasons, setSeasons] = useState<any[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -54,6 +56,41 @@ export default function HomeScreen() {
         if (pilotError) throw pilotError;
         setPilot(pilotData);
         const pilotId = pilotData.id;
+
+        // Get seasons for current user
+        // Paso 1: obtener los season_id donde el piloto participa
+        const { data: pilotSeasonRows, error: pilotSeasonError } = await supabase
+        .from('pilot_team_season')
+        .select('season_id')
+        .eq('pilot_id', pilotId);
+
+        if (pilotSeasonError) throw pilotSeasonError;
+
+        const seasonIds = pilotSeasonRows?.map(row => row.season_id) || [];
+
+        if (seasonIds.length === 0) {
+        setSeasons([]);
+        setSelectedSeasonId(null);
+        return;
+        }
+
+        // Paso 2: traer datos de esas seasons
+        const { data: seasonsData, error: seasonsError } = await supabase
+        .from('season')
+        .select('id, name, is_active')
+        .in('id', seasonIds);
+
+        if (seasonsError) throw seasonsError;
+
+        // Ordenar con la activa al principio
+        const sortedSeasons = seasonsData.sort((a, b) => {
+        if (a.is_active) return -1;
+        if (b.is_active) return 1;
+        return a.name.localeCompare(b.name);
+        });
+
+        setSeasons(sortedSeasons);
+        setSelectedSeasonId(sortedSeasons[0]?.id || null);
 
         // Fetch next upcoming race
         const { data: raceData, error: raceError } = await supabase
@@ -250,30 +287,6 @@ export default function HomeScreen() {
     fetchData();
   }, [user]);
 
-  const chartConfig = {
-    backgroundColor: colors.card,
-    backgroundGradientFrom: colors.card,
-    backgroundGradientTo: colors.card,
-    decimalPlaces: 2,
-    color: (opacity = 1) => `rgba(${parseInt(colors.primary.slice(1, 3), 16)}, ${parseInt(colors.primary.slice(3, 5), 16)}, ${parseInt(colors.primary.slice(5, 7), 16)}, ${opacity})`,
-    labelColor: (opacity = 1) => colors.textSecondary,
-    style: {
-      borderRadius: 16,
-    },
-    propsForDots: {
-      r: "4",
-      strokeWidth: "2",
-      stroke: colors.primary
-    },
-    propsForLabels: {
-      fontSize: 10,
-    },
-    propsForVerticalLabels: {
-      fontSize: 10,
-      rotation: 0,
-    },
-  };
-
   useEffect(() => {
     async function fetchResults() {
       setLoading(true);
@@ -334,6 +347,28 @@ export default function HomeScreen() {
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Mantente al día con la información más reciente
             </Text>
+          </View>
+        )}
+
+        {seasons.length > 1 && (
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>Temporada</Text>
+            {seasons.map(season => (
+              <TouchableOpacity
+                key={season.id}
+                onPress={() => setSelectedSeasonId(season.id)}
+                style={{
+                  padding: 10,
+                  backgroundColor: selectedSeasonId === season.id ? colors.primaryLight : colors.card,
+                  borderRadius: 6,
+                  marginBottom: 6,
+                }}
+              >
+                <Text style={{ color: colors.text }}>
+                  {season.name} {season.is_active ? '(Activa)' : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 
