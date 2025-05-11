@@ -9,6 +9,7 @@ import { supabase, Season, Race } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'expo-router';
+import SeasonSelector from '@/components/SeasonSelector';
 
 type Circuit = {
   id: string;
@@ -212,37 +213,11 @@ export default function RacesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Carreras" showBackButton={false} />
 
-      <View style={styles.seasonSelector}>
-        <MaterialCommunityIcons name="calendar" size={24} color={colors.textSecondary} />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.seasonScrollContent}
-        >
-          {seasons.map((season) => (
-            <TouchableOpacity
-              key={season.id}
-              style={[
-                styles.seasonButton,
-                selectedSeason === season.id && { backgroundColor: colors.primaryLight }
-              ]}
-              onPress={() => setSelectedSeason(season.id)}
-            >
-              <Text
-                style={[
-                  styles.seasonButtonText,
-                  { color: selectedSeason === season.id ? colors.primary : colors.textSecondary }
-                ]}
-              >
-                {season.name}
-              </Text>
-              {season.is_active && (
-                <View style={[styles.activeBadge, { backgroundColor: colors.primary }]} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      <SeasonSelector
+        seasons={seasons}
+        selectedSeason={selectedSeason}
+        onSelect={setSelectedSeason}
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {renderRaces()}

@@ -17,6 +17,7 @@ import {
   ChartCardSkeleton,
   ResultsCardSkeleton,
 } from '@/components/Skeletons';
+import SeasonSelector from '@/components/SeasonSelector';
 
 type RaceResultWithRelations = RaceResult & {
   race: Race;
@@ -350,28 +351,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {seasons.length > 1 && (
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>Temporada</Text>
-            {seasons.map(season => (
-              <TouchableOpacity
-                key={season.id}
-                onPress={() => setSelectedSeasonId(season.id)}
-                style={{
-                  padding: 10,
-                  backgroundColor: selectedSeasonId === season.id ? colors.primaryLight : colors.card,
-                  borderRadius: 6,
-                  marginBottom: 6,
-                }}
-              >
-                <Text style={{ color: colors.text }}>
-                  {season.name} {season.is_active ? '(Activa)' : ''}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
         {loading ? (
           <>
             <NextRaceCardSkeleton />
@@ -386,6 +365,12 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
+            <SeasonSelector
+              seasons={seasons}
+              selectedSeason={selectedSeasonId}
+              onSelect={setSelectedSeasonId}
+            />
+
             {nextRace && (
               <NextRaceCard race={nextRace as Race & { circuit?: { name?: string; image_url?: string } } } />
             )}
