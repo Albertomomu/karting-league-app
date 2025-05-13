@@ -38,142 +38,118 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [seasons, setSeasons] = useState<any[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
+  const [leagueId, setLeagueId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
-
+  
       try {
         setLoading(true);
-
-        // Get pilot data for current user
+  
+        // Get pilot data
         const { data: pilotData, error: pilotError } = await supabase
           .from('pilot')
           .select('*')
           .eq('user_id', user.id)
           .single();
-
+  
         if (pilotError) throw pilotError;
         setPilot(pilotData);
         const pilotId = pilotData.id;
-
-        // Get seasons for current user
-        // Paso 1: obtener los season_id donde el piloto participa
+  
+        // Get all seasons the pilot participated in
         const { data: pilotSeasonRows, error: pilotSeasonError } = await supabase
-        .from('pilot_team_season')
-        .select('season_id')
-        .eq('pilot_id', pilotId);
-
+          .from('pilot_team_season')
+          .select('season_id')
+          .eq('pilot_id', pilotId);
+  
         if (pilotSeasonError) throw pilotSeasonError;
-
         const seasonIds = pilotSeasonRows?.map(row => row.season_id) || [];
-
-        if (seasonIds.length === 0) {
-        setSeasons([]);
-        setSelectedSeasonId(null);
-        return;
-        }
-
-        // Paso 2: traer datos de esas seasons
+        if (seasonIds.length === 0) return;
+  
         const { data: seasonsData, error: seasonsError } = await supabase
-        .from('season')
-        .select('id, name, is_active')
-        .in('id', seasonIds);
-
+          .from('season')
+          .select('id, name, is_active')
+          .in('id', seasonIds);
+  
         if (seasonsError) throw seasonsError;
-
-        // Ordenar con la activa al principio
+  
         const sortedSeasons = seasonsData.sort((a, b) => {
-        if (a.is_active) return -1;
-        if (b.is_active) return 1;
-        return a.name.localeCompare(b.name);
+          if (a.is_active) return -1;
+          if (b.is_active) return 1;
+          return a.name.localeCompare(b.name);
         });
-
+  
         setSeasons(sortedSeasons);
-        setSelectedSeasonId(sortedSeasons[0]?.id || null);
-
-        // Fetch next upcoming race
-        const { data: raceData, error: raceError } = await supabase
+        if (!selectedSeasonId) setSelectedSeasonId(sortedSeasons[0]?.id || null);
+  
+        // Get league for this pilot and season
+        const { data: leagueData, error: leagueError } = await supabase
+          .from('pilot_team_season')
+          .select('league_id')
+          .eq('pilot_id', pilotId)
+          .eq('season_id', selectedSeasonId)
+          .single();
+  
+        if (leagueError) throw leagueError;
+        setLeagueId(leagueData.league_id);
+  
+        // Fetch next race
+        const { data: nextRaceData, error: nextRaceError } = await supabase
           .from('race')
           .select('*, circuit (*)')
-          .gt('date', new Date().toISOString())
+          .eq('league_id', leagueId)
           .order('date', { ascending: true })
+          .gt('date', new Date().toISOString())
           .limit(1)
           .single();
-
-        if (raceError && raceError.code !== 'PGRST116') {
-          console.error('Error fetching next race:', raceError);
-        } else {
-          setNextRace(raceData);
-        }
-
-        // Get the league ID for the selected season
-        const { data: ptsData, error: ptsError } = await supabase
-        .from('pilot_team_season')
-        .select('league_id')
-        .eq('pilot_id', pilotId)
-        .eq('season_id', selectedSeasonId)
-        .single();
-
-        if (ptsError) throw ptsError;
-
-        const leagueId = ptsData.league_id;
-
-        // Fetch race results for that league
+  
+        if (!nextRaceError) setNextRace(nextRaceData);
+  
+        // Fetch pilot stats (results by league)
         const { data: statsData, error: statsError } = await supabase
-        .from('race_result')
-        .select(`
-          race_position,
-          points,
-          best_lap,
-          session (name),
-          race:race!inner(id, league_id)
-        `)
-        .eq('pilot_id', pilotId)
-        .eq('race.league_id', leagueId);
-
+          .from('race_result')
+          .select(`race_position, points, best_lap, session (name), race:race!inner(id, league_id)`)
+          .eq('pilot_id', pilotId)
+          .eq('race.league_id', leagueId);
+  
         if (statsError) throw statsError;
-
+  
         const processedStats = statsData.map(r => ({
-        race_position: r.race_position,
-        points: r.points,
-        best_lap: r.best_lap,
-        session_name: r.session?.name || null
+          race_position: r.race_position,
+          points: r.points,
+          best_lap: r.best_lap,
+          session_name: r.session?.name || null,
         }));
-
+  
         const stats = {
-        totalRaces: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).length,
-        podiums: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position <= 3).length,
-        wins: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position === 1).length,
-        totalPoints: processedStats.reduce((sum, r) => sum + (r.points || 0), 0),
-        bestPosition: Math.min(
-          ...processedStats
-            .filter(r => r.session_name?.toLowerCase().includes('carrera'))
-            .map(r => r.race_position ?? 999)
-        ),
-        polePosition: processedStats.filter(
-          r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1
-        ).length
+          totalRaces: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).length,
+          podiums: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position <= 3).length,
+          wins: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position === 1).length,
+          totalPoints: processedStats.reduce((sum, r) => sum + (r.points || 0), 0),
+          bestPosition: Math.min(...processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).map(r => r.race_position ?? 999)),
+          polePosition: processedStats.filter(r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1).length,
         };
 
         setPilotStats(stats);
 
+        //Getting championship data for graphs
         // Fetch position progression data
         const { data: positionsData, error: positionsError } = await supabase
-          .from('race_result')
-          .select(`
+        .from('race_result')
+        .select(`
           race_position,
-          race (
-            date
-          )
+          race:race!inner(id, date, league_id)
         `)
-          .eq('pilot_id', pilotId)
-          .in('session_id', [
-            '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
-            '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
-          ])
-          .order('date', { foreignTable: 'race', ascending: true });
+        .eq('pilot_id', pilotId)
+        .eq('race.league_id', leagueId)
+        .in('session_id', [
+          '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
+          '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
+        ])
+        .order('date', { foreignTable: 'race', ascending: true });
 
         if (positionsError) throw positionsError;
 
@@ -289,7 +265,6 @@ export default function HomeScreen() {
           }],
           raceNames: pilotChampionshipPositions.map(p => p.raceName)
         });
-
       } catch (error) {
         console.error('Error in data fetching:', error);
         setError('Error loading data');
@@ -297,51 +272,42 @@ export default function HomeScreen() {
         setLoading(false);
       }
     }
-
+  
     fetchData();
-  }, [user]);
-
+  }, [user, selectedSeasonId]);
+  
   useEffect(() => {
     async function fetchResults() {
+      if (!pilot || !selectedSeasonId) return;
+  
       setLoading(true);
       setError(null);
-
-      try {
-        let query = supabase
+  
+      try {  
+        // Fetch results
+        const { data, error } = await supabase
           .from('race_result')
-          .select(`
-            *,
-            race (*),
-            pilot (*),
-            session (*)
-          `)
+          .select(`*, race:race!inner(*), pilot (*), session (*)`)
+          .eq('pilot_id', pilot.id)
+          .eq('race.league_id', leagueId)
           .order('created_at', { ascending: false })
           .limit(12);
-
-        if (pilot) {
-          query = query.eq('pilot_id', pilot?.id);
-        }
-
-        const { data, error } = await query;
-
+  
         if (error) throw error;
         setResults(data || []);
       } catch (err) {
-        setError('Error al cargar los resultados.');
         console.error(err);
+        setError('Error loading results');
       } finally {
         setLoading(false);
       }
     }
-
+  
     fetchResults();
-  }, [pilot]);
-
-  // Filtra para quitar sesiones de clasificación
+  }, [pilot, selectedSeasonId]);
+  
   const filteredResults = results.filter(
-    (result) =>
-      result.session &&
-      !/clasificaci[oó]n|qualifying/i.test(result.session.name)
+    result => result.session && !/clasificaci[oó]n|qualifying/i.test(result.session.name)
   );
 
   return (
