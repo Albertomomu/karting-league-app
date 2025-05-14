@@ -41,14 +41,14 @@ export default function HomeScreen() {
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const router = useRouter();
 
+  // 1. Fetch pilot and seasons
   useEffect(() => {
-    async function fetchData() {
+    async function fetchPilotAndSeasons() {
       if (!user) return;
   
       try {
         setLoading(true);
   
-        // Get pilot data
         const { data: pilotData, error: pilotError } = await supabase
           .from('pilot')
           .select('*')
@@ -57,16 +57,18 @@ export default function HomeScreen() {
   
         if (pilotError) throw pilotError;
         setPilot(pilotData);
+  
         const pilotId = pilotData.id;
   
-        // Get all seasons the pilot participated in
         const { data: pilotSeasonRows, error: pilotSeasonError } = await supabase
           .from('pilot_team_season')
           .select('season_id')
           .eq('pilot_id', pilotId);
   
         if (pilotSeasonError) throw pilotSeasonError;
-        const seasonIds = pilotSeasonRows?.map(row => row.season_id) || [];
+  
+        const seasonIds = pilotSeasonRows.map(row => row.season_id);
+  
         if (seasonIds.length === 0) return;
   
         const { data: seasonsData, error: seasonsError } = await supabase
@@ -83,35 +85,67 @@ export default function HomeScreen() {
         });
   
         setSeasons(sortedSeasons);
-        if (!selectedSeasonId) setSelectedSeasonId(sortedSeasons[0]?.id || null);
-
-        // Avoid running league query if seasonId is null
-        if (!selectedSeasonId) return;
   
-        // Get league for this pilot and season
+        if (!selectedSeasonId) {
+          setSelectedSeasonId(sortedSeasons[0]?.id || null);
+        }
+      } catch (error) {
+        console.error('Error fetching pilot/seasons:', error);
+        setError('Error cargando datos del piloto');
+      } finally {
+        setLoading(false);
+      }
+    }
+  
+    fetchPilotAndSeasons();
+  }, [user]);
+
+  // 2. Fetch league
+  useEffect(() => {
+    async function fetchLeague() {
+      if (!pilot || !selectedSeasonId) return;
+  
+      try {
         const { data: leagueData, error: leagueError } = await supabase
           .from('pilot_team_season')
           .select('league_id')
-          .eq('pilot_id', pilotId)
+          .eq('pilot_id', pilot.id)
           .eq('season_id', selectedSeasonId)
           .single();
   
         if (leagueError) throw leagueError;
         setLeagueId(leagueData.league_id);
+      } catch (error) {
+        console.error('Error fetching league ID:', error);
+        setError('Error cargando la liga');
+      }
+    }
   
-        // Fetch next race
+    fetchLeague();
+  }, [pilot, selectedSeasonId]);
+
+  // 3. Fetch everything else
+  useEffect(() => {
+    async function fetchEverythingElse() {
+      if (!pilot || !leagueId) return;
+  
+      try {
+        setLoading(true);
+        const pilotId = pilot.id;
+  
+        // Next race
         const { data: nextRaceData, error: nextRaceError } = await supabase
           .from('race')
           .select('*, circuit (*)')
           .eq('league_id', leagueId)
-          .order('date', { ascending: true })
           .gt('date', new Date().toISOString())
+          .order('date', { ascending: true })
           .limit(1)
           .single();
   
         if (!nextRaceError) setNextRace(nextRaceData);
   
-        // Fetch pilot stats (results by league)
+        // Stats
         const { data: statsData, error: statsError } = await supabase
           .from('race_result')
           .select(`race_position, points, best_lap, session (name), race:race!inner(id, league_id)`)
@@ -135,64 +169,45 @@ export default function HomeScreen() {
           bestPosition: Math.min(...processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).map(r => r.race_position ?? 999)),
           polePosition: processedStats.filter(r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1).length,
         };
-
+  
         setPilotStats(stats);
-
-        //Getting championship data for graphs
-        // Fetch position progression data
+  
+        // Progreso por carrera
         const { data: positionsData, error: positionsError } = await supabase
-        .from('race_result')
-        .select(`
-          race_position,
-          race:race!inner(id, date, league_id)
-        `)
-        .eq('pilot_id', pilotId)
-        .eq('race.league_id', leagueId)
-        .in('session_id', [
-          '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
-          '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
-        ])
-        .order('date', { foreignTable: 'race', ascending: true });
-
+          .from('race_result')
+          .select(`race_position, race:race!inner(id, date, league_id)`)
+          .eq('pilot_id', pilotId)
+          .eq('race.league_id', leagueId)
+          .in('session_id', [
+            '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
+            '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
+          ])
+          .order('date', { foreignTable: 'race', ascending: true });
+  
         if (positionsError) throw positionsError;
-
-        type SimpleRaceResult = {
-          race_position: number | null;
-          race: { date: string } | null;
-        };
-
-        const positions = positionsData as unknown as SimpleRaceResult[];
-
-        const validPositions = positions
+  
+        const validPositions = positionsData
           .filter(p => p.race !== null && p.race_position !== null)
           .map(p => ({
             position: p.race_position!,
             date: p.race!.date
           }));
-
+  
         setPositionData({
           labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
           datasets: [{
             data: validPositions.map(p => p.position)
           }]
         });
-
-        // Fetch championship position progression
+  
+        // Progreso campeonato
         const { data: allResultsData, error: allResultsError } = await supabase
           .from('race_result')
-          .select(`
-            pilot_id,
-            points,
-            race (
-              id,
-              date,
-              name
-            )
-          `)
+          .select(`pilot_id, points, race (id, date, name)`)
           .order('date', { foreignTable: 'race', ascending: true });
-
+  
         if (allResultsError) throw allResultsError;
-
+  
         const processedResults = (allResultsData as any[]).filter(r => r.race !== null).map(r => ({
           pilot_id: r.pilot_id,
           points: r.points || 0,
@@ -200,8 +215,7 @@ export default function HomeScreen() {
           date: r.race.date,
           race_name: r.race.name
         }));
-
-        // Agrupamos por carrera (ordenadas por fecha)
+  
         const races = Array.from(new Set(processedResults.map(r => r.race_id)))
           .map(raceId => {
             const raceData = processedResults.find(r => r.race_id === raceId);
@@ -212,8 +226,7 @@ export default function HomeScreen() {
             };
           })
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        // Calculamos puntos acumulados por piloto después de cada carrera
+  
         const championshipData: {
           raceId: string;
           date: string;
@@ -223,20 +236,17 @@ export default function HomeScreen() {
             totalPoints: number;
           }[];
         }[] = [];
-
+  
         let accumulatedPoints: Record<string, number> = {};
-
+  
         for (const race of races) {
-          // Obtenemos resultados de esta carrera
           const raceResults = processedResults.filter(r => r.race_id === race.id);
-
-          // Sumamos puntos a los acumulados
+  
           for (const result of raceResults) {
             accumulatedPoints[result.pilot_id] =
               (accumulatedPoints[result.pilot_id] || 0) + result.points;
           }
-
-          // Guardamos el estado del campeonato después de esta carrera
+  
           championshipData.push({
             raceId: race.id,
             date: race.date,
@@ -246,21 +256,19 @@ export default function HomeScreen() {
               .sort((a, b) => b.totalPoints - a.totalPoints)
           });
         }
-
-        // Encontramos la posición de nuestro piloto en cada carrera
+  
         const pilotChampionshipPositions = championshipData.map(raceData => {
           const pilotStanding = raceData.standings.findIndex(
             standing => standing.pilot_id === pilotId
           );
-
+  
           return {
             date: raceData.date,
             raceName: raceData.raceName,
             position: pilotStanding !== -1 ? pilotStanding + 1 : null
           };
         }).filter(data => data.position !== null);
-
-        // Preparamos datos para el gráfico
+  
         setChampionshipPositionData({
           labels: pilotChampionshipPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
           datasets: [{
@@ -268,16 +276,17 @@ export default function HomeScreen() {
           }],
           raceNames: pilotChampionshipPositions.map(p => p.raceName)
         });
+  
       } catch (error) {
-        console.error('Error in data fetching:', error);
-        setError('Error loading data');
+        console.error('Error fetching league-related data:', error);
+        setError('Error cargando datos de la liga');
       } finally {
         setLoading(false);
       }
     }
   
-    fetchData();
-  }, [user, selectedSeasonId]);
+    fetchEverythingElse();
+  }, [pilot, leagueId]);  
   
   useEffect(() => {
     async function fetchResults() {
