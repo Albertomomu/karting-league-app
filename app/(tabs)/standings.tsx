@@ -11,6 +11,9 @@ const TABS = [
   { key: 'teams', title: 'Equipos' },
 ];
 
+// Colores podio: Oro, Plata, Bronce
+const PODIUM_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
+
 export default function StandingsScreen() {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('drivers');
@@ -212,7 +215,14 @@ export default function StandingsScreen() {
             </View>
             {driverStandings.map((row, idx) => (
               <View key={row.pilot.id} style={styles.row}>
-                <Text style={[styles.position, { color: colors.primary }]}>{idx + 1}</Text>
+                <Text
+                  style={[
+                    styles.position,
+                    { color: PODIUM_COLORS[idx] || colors.primary }
+                  ]}
+                >
+                  {idx + 1}
+                </Text>
                 <View style={styles.pilotCell}>
                   {row.pilot.avatar_url ? (
                     <Image
@@ -239,7 +249,14 @@ export default function StandingsScreen() {
                     {row.team?.name || '-'}
                   </Text>
                 </View>
-                <Text style={[styles.points, { color: colors.text }]}>{row.totalPoints}</Text>
+                <Text
+                  style={[
+                    styles.points,
+                    { color: PODIUM_COLORS[idx] || colors.text }
+                  ]}
+                >
+                  {row.totalPoints}
+                </Text>
               </View>
             ))}
           </View>
@@ -252,7 +269,14 @@ export default function StandingsScreen() {
             </View>
             {teamStandings.map((row, idx) => (
               <View key={row.team.id} style={styles.row}>
-                <Text style={[styles.position, { color: colors.primary }]}>{idx + 1}</Text>
+                <Text
+                  style={[
+                    styles.position,
+                    { color: PODIUM_COLORS[idx] || colors.primary }
+                  ]}
+                >
+                  {idx + 1}
+                </Text>
                 <View style={styles.pilotCell}>
                   {row.team.logo_url ? (
                     <Image
@@ -266,7 +290,14 @@ export default function StandingsScreen() {
                     {row.team.name}
                   </Text>
                 </View>
-                <Text style={[styles.points, { color: colors.text }]}>{row.totalPoints}</Text>
+                <Text
+                  style={[
+                    styles.points,
+                    { color: PODIUM_COLORS[idx] || colors.text }
+                  ]}
+                >
+                  {row.totalPoints}
+                </Text>
               </View>
             ))}
           </View>
