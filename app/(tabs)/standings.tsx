@@ -1,21 +1,29 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import SeasonSelector from '@/components/SeasonSelector';
 import Toast from 'react-native-toast-message';
 
+const TABS = [
+  { key: 'drivers', title: 'Pilotos' },
+  { key: 'teams', title: 'Equipos' },
+];
+
 export default function StandingsScreen() {
   const { colors } = useTheme();
+  const [activeTab, setActiveTab] = useState('drivers');
   const [seasons, setSeasons] = useState<any[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [leagueIds, setLeagueIds] = useState<string[]>([]);
-  const [standings, setStandings] = useState<any[]>([]);
+  const [driverStandings, setDriverStandings] = useState<any[]>([]);
+  const [teamStandings, setTeamStandings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 1. Cargar temporadas
   useEffect(() => {
     async function fetchSeasons() {
       setLoading(true);
@@ -37,6 +45,7 @@ export default function StandingsScreen() {
     fetchSeasons();
   }, []);
 
+  // 2. Cargar leagues de la temporada seleccionada
   useEffect(() => {
     async function fetchLeagues() {
       if (!selectedSeasonId) return;
@@ -54,63 +63,120 @@ export default function StandingsScreen() {
     fetchLeagues();
   }, [selectedSeasonId]);
 
+  // 3. Standings de pilotos y equipos
   const fetchStandings = useCallback(async () => {
     if (!leagueIds.length) return;
     setLoading(true);
     setError(null);
     try {
+      // Resultados de carrera
       const { data: results, error } = await supabase
         .from('race_result')
-        .select('pilot_id, points, pilot:pilot(id, name, image_url), race:race(id, league_id)')
+        .select('pilot_id, points, pilot:pilot(id, name, avatar_url), race:race(id, league_id)')
         .in('race.league_id', leagueIds);
 
       if (error) throw error;
 
-      const standingsMap: Record<string, { pilot: any, totalPoints: number, races: number }> = {};
-      for (const r of results) {
+      // Relación piloto-equipo-temporada
+      const { data: pilotTeams, error: ptsError } = await supabase
+        .from('pilot_team_season')
+        .select('pilot_id, team:team_id(id, name, logo_url)')
+        .eq('season_id', selectedSeasonId);
+
+      if (ptsError) throw ptsError;
+      const pilotTeamMap = {};
+      pilotTeams.forEach(row => {
+        pilotTeamMap[row.pilot_id] = row.team;
+      });
+
+      // PILOTOS
+      const standingsMap = {};
+      results.forEach(r => {
         if (!standingsMap[r.pilot_id]) {
           standingsMap[r.pilot_id] = {
             pilot: r.pilot,
             totalPoints: 0,
-            races: 0,
+            team: pilotTeamMap[r.pilot_id] || null,
           };
         }
         standingsMap[r.pilot_id].totalPoints += r.points || 0;
-        standingsMap[r.pilot_id].races += 1;
-      }
-      const standingsArr = Object.values(standingsMap)
-        .sort((a, b) => b.totalPoints - a.totalPoints);
+      });
+      const standingsArr = Object.values(standingsMap).sort((a, b) => b.totalPoints - a.totalPoints);
 
-      setStandings(standingsArr);
+      setDriverStandings(standingsArr);
+
+      // EQUIPOS
+      const teamMap = {};
+      results.forEach(r => {
+        const team = pilotTeamMap[r.pilot_id];
+        if (!team) return; // Ignora pilotos sin equipo en esta temporada
+        if (!teamMap[team.id]) {
+          teamMap[team.id] = {
+            team,
+            totalPoints: 0,
+          };
+        }
+        teamMap[team.id].totalPoints += r.points || 0;
+      });
+      const teamsArr = Object.values(teamMap).sort((a, b) => b.totalPoints - a.totalPoints);
+
+      setTeamStandings(teamsArr);
 
       Toast.show({
         type: 'success',
         text1: 'Clasificación actualizada',
-        text2: 'Se han actualizado los puntos de todos los pilotos',
+        text2: 'Se han actualizado las clasificaciones de pilotos y equipos',
         position: 'top',
       });
     } catch (err) {
       setError('Error cargando clasificación');
+      console.log(err);
       Toast.show({
         type: 'error',
         text1: 'Error al cargar clasificación',
-        text2: err instanceof Error ? err.message : 'Error desconocido',
+        text2: 'Intentalo de nuevo',
         position: 'top',
       });
     } finally {
       setLoading(false);
     }
-  }, [leagueIds]);
+  }, [leagueIds, selectedSeasonId]);
 
   useEffect(() => {
     fetchStandings();
-  }, [leagueIds, fetchStandings]);
+  }, [fetchStandings]);
 
+  // Pull to refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchStandings();
     setRefreshing(false);
   }, [fetchStandings]);
+
+  // Render tabs
+  function renderTabs() {
+    return (
+      <View style={styles.tabs}>
+        {TABS.map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.tab,
+              activeTab === tab.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+            ]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: activeTab === tab.key ? colors.primary : colors.textSecondary }
+            ]}>
+              {tab.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -130,30 +196,27 @@ export default function StandingsScreen() {
           selectedSeason={selectedSeasonId}
           onSelect={setSelectedSeasonId}
         />
-
-        <Text style={[styles.title, { color: colors.text }]}>Clasificación General</Text>
+        {renderTabs()}
 
         {loading ? (
           <Text style={{ color: colors.text, marginTop: 24 }}>Cargando...</Text>
         ) : error ? (
           <Text style={{ color: colors.error, marginTop: 24 }}>{error}</Text>
-        ) : standings.length === 0 ? (
-          <Text style={{ color: colors.text, marginTop: 24 }}>No hay datos para esta temporada.</Text>
-        ) : (
+        ) : activeTab === 'drivers' ? (
           <View style={styles.table}>
             <View style={styles.headerRow}>
               <Text style={[styles.headerCell, { width: 32 }]}>#</Text>
               <Text style={[styles.headerCell, { flex: 1 }]}>Piloto</Text>
+              <Text style={[styles.headerCell, { width: 90 }]}>Equipo</Text>
               <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>Puntos</Text>
-              <Text style={[styles.headerCell, { width: 60, textAlign: 'right' }]}>Carreras</Text>
             </View>
-            {standings.map((row, idx) => (
+            {driverStandings.map((row, idx) => (
               <View key={row.pilot.id} style={styles.row}>
                 <Text style={[styles.position, { color: colors.primary }]}>{idx + 1}</Text>
                 <View style={styles.pilotCell}>
-                  {row.pilot.image_url ? (
+                  {row.pilot.avatar_url ? (
                     <Image
-                      source={{ uri: row.pilot.image_url }}
+                      source={{ uri: row.pilot.avatar_url }}
                       style={styles.avatar}
                     />
                   ) : (
@@ -163,8 +226,47 @@ export default function StandingsScreen() {
                     {row.pilot.name}
                   </Text>
                 </View>
+                <View style={styles.teamCell}>
+                  {row.team?.logo_url ? (
+                    <Image
+                      source={{ uri: row.team.logo_url }}
+                      style={styles.teamAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
+                  )}
+                  <Text style={[styles.teamName, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {row.team?.name || '-'}
+                  </Text>
+                </View>
                 <Text style={[styles.points, { color: colors.text }]}>{row.totalPoints}</Text>
-                <Text style={[styles.races, { color: colors.textSecondary }]}>{row.races}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.table}>
+            <View style={styles.headerRow}>
+              <Text style={[styles.headerCell, { width: 32 }]}>#</Text>
+              <Text style={[styles.headerCell, { flex: 1 }]}>Equipo</Text>
+              <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>Puntos</Text>
+            </View>
+            {teamStandings.map((row, idx) => (
+              <View key={row.team.id} style={styles.row}>
+                <Text style={[styles.position, { color: colors.primary }]}>{idx + 1}</Text>
+                <View style={styles.pilotCell}>
+                  {row.team.logo_url ? (
+                    <Image
+                      source={{ uri: row.team.logo_url }}
+                      style={styles.teamAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
+                  )}
+                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                    {row.team.name}
+                  </Text>
+                </View>
+                <Text style={[styles.points, { color: colors.text }]}>{row.totalPoints}</Text>
               </View>
             ))}
           </View>
@@ -176,18 +278,10 @@ export default function StandingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-    paddingTop: 0, // No padding top para que el título esté bien alineado
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    marginTop: 10, // Si quieres más separación, ajusta aquí
-    alignSelf: 'flex-start',
-  },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 0 },
+  tabs: { flexDirection: 'row', marginBottom: 12, marginTop: 8 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  tabText: { fontSize: 16, fontWeight: 'bold' },
   table: { marginTop: 0 },
   headerRow: {
     flexDirection: 'row',
@@ -212,7 +306,9 @@ const styles = StyleSheet.create({
   position: { width: 32, fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
   pilotCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, backgroundColor: '#eee' },
+  teamCell: { width: 90, flexDirection: 'row', alignItems: 'center' },
+  teamAvatar: { width: 22, height: 22, borderRadius: 11, marginRight: 6, backgroundColor: '#eee' },
+  teamName: { fontSize: 13, flexShrink: 1 },
   name: { fontSize: 15, flexShrink: 1 },
   points: { width: 70, textAlign: 'right', fontWeight: 'bold', fontSize: 15 },
-  races: { width: 60, textAlign: 'right', fontSize: 14 },
 });
