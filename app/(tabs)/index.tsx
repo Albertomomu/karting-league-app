@@ -159,14 +159,25 @@ export default function HomeScreen() {
         session_name: r.session?.name || null,
       }));
 
+      const carrerasStats = processedStats.filter(
+        r => r.session_name?.toLowerCase().includes('carrera') && typeof r.race_position === 'number'
+      );
+      
+      const bestPosition =
+        carrerasStats.length > 0
+          ? Math.min(...carrerasStats.map(r => r.race_position))
+          : "-";
+      
       const stats = {
-        totalRaces: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).length,
-        podiums: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position <= 3).length,
-        wins: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position === 1).length,
+        totalRaces: carrerasStats.length,
+        podiums: carrerasStats.filter(r => r.race_position <= 3).length,
+        wins: carrerasStats.filter(r => r.race_position === 1).length,
         totalPoints: processedStats.reduce((sum, r) => sum + (r.points || 0), 0),
-        bestPosition: Math.min(...processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).map(r => r.race_position ?? 999)),
-        polePosition: processedStats.filter(r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1).length,
-      };
+        bestPosition: bestPosition,
+        polePosition: processedStats.filter(
+          r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1
+        ).length,
+      };      
 
       setPilotStats(stats);
 
@@ -191,12 +202,17 @@ export default function HomeScreen() {
           date: p.race!.date
         }));
 
-      setPositionData({
-        labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
-        datasets: [{
-          data: validPositions.map(p => p.position)
-        }]
-      });
+        // Progreso por carrera
+        if (validPositions.length > 0) {
+          setPositionData({
+            labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
+            datasets: [{
+              data: validPositions.map(p => p.position)
+            }]
+          });
+        } else {
+          setPositionData(null);
+        }
 
       // Progreso campeonato
       const { data: allResultsData, error: allResultsError } = await supabase
@@ -267,13 +283,18 @@ export default function HomeScreen() {
         };
       }).filter(data => data.position !== null);
 
-      setChampionshipPositionData({
-        labels: pilotChampionshipPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
-        datasets: [{
-          data: pilotChampionshipPositions.map(p => p.position!)
-        }],
-        raceNames: pilotChampionshipPositions.map(p => p.raceName)
-      });
+      // Progreso campeonato
+      if (pilotChampionshipPositions.length > 0) {
+        setChampionshipPositionData({
+          labels: pilotChampionshipPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
+          datasets: [{
+            data: pilotChampionshipPositions.map(p => p.position!)
+          }],
+          raceNames: pilotChampionshipPositions.map(p => p.raceName)
+        });
+      } else {
+        setChampionshipPositionData(null);
+      }
 
     } catch (error) {
       console.error('Error fetching league-related data:', error);
