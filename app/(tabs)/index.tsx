@@ -84,6 +84,9 @@ export default function HomeScreen() {
   
         setSeasons(sortedSeasons);
         if (!selectedSeasonId) setSelectedSeasonId(sortedSeasons[0]?.id || null);
+
+        // Avoid running league query if seasonId is null
+        if (!selectedSeasonId) return;
   
         // Get league for this pilot and season
         const { data: leagueData, error: leagueError } = await supabase
