@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
@@ -38,57 +38,60 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [seasons, setSeasons] = useState<any[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
-  const [leagueId, setLeagueId] = useState<string | null>(null);
+  const [leagueIds, setLeagueIds] = useState<string[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
   // 1. Fetch pilot and seasons
   useEffect(() => {
     async function fetchPilotAndSeasons() {
       if (!user) return;
-  
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-  
+        setPilot(null);
+        setSeasons([]);
+        setSelectedSeasonId(null);
+        setLeagueIds([]);
+
         const { data: pilotData, error: pilotError } = await supabase
           .from('pilot')
           .select('*')
           .eq('user_id', user.id)
           .single();
-  
+
         if (pilotError) throw pilotError;
         setPilot(pilotData);
-  
+
         const pilotId = pilotData.id;
-  
+
         const { data: pilotSeasonRows, error: pilotSeasonError } = await supabase
           .from('pilot_team_season')
           .select('season_id')
           .eq('pilot_id', pilotId);
-  
+
         if (pilotSeasonError) throw pilotSeasonError;
-  
+
         const seasonIds = pilotSeasonRows.map(row => row.season_id);
-  
+
         if (seasonIds.length === 0) return;
-  
+
         const { data: seasonsData, error: seasonsError } = await supabase
           .from('season')
           .select('id, name, is_active')
           .in('id', seasonIds);
-  
+
         if (seasonsError) throw seasonsError;
-  
+
         const sortedSeasons = seasonsData.sort((a, b) => {
           if (a.is_active) return -1;
           if (b.is_active) return 1;
           return a.name.localeCompare(b.name);
         });
-  
+
         setSeasons(sortedSeasons);
-  
-        if (!selectedSeasonId) {
-          setSelectedSeasonId(sortedSeasons[0]?.id || null);
-        }
+
+        setSelectedSeasonId(sortedSeasons[0]?.id || null);
       } catch (error) {
         console.error('Error fetching pilot/seasons:', error);
         setError('Error cargando datos del piloto');
@@ -96,231 +99,237 @@ export default function HomeScreen() {
         setLoading(false);
       }
     }
-  
+
     fetchPilotAndSeasons();
   }, [user]);
 
-  // 2. Fetch league
+  // 2. Fetch leagues for the selected season
   useEffect(() => {
-    async function fetchLeague() {
-      if (!pilot || !selectedSeasonId) return;
-  
+    async function fetchLeagues() {
+      if (!selectedSeasonId) return;
       try {
-        const { data: leagueData, error: leagueError } = await supabase
-          .from('pilot_team_season')
-          .select('league_id')
-          .eq('pilot_id', pilot.id)
-          .eq('season_id', selectedSeasonId)
-          .single();
-  
-        if (leagueError) throw leagueError;
-        setLeagueId(leagueData.league_id);
-      } catch (error) {
-        console.error('Error fetching league ID:', error);
-        setError('Error cargando la liga');
-      }
-    }
-  
-    fetchLeague();
-  }, [pilot, selectedSeasonId]);
+        const { data: leagues, error: leaguesError } = await supabase
+          .from('league')
+          .select('id')
+          .eq('season_id', selectedSeasonId);
 
-  // 3. Fetch everything else
-  useEffect(() => {
-    async function fetchEverythingElse() {
-      if (!pilot || !leagueId) return;
-  
-      try {
-        setLoading(true);
-        const pilotId = pilot.id;
-  
-        // Next race
-        const { data: nextRaceData, error: nextRaceError } = await supabase
-          .from('race')
-          .select('*, circuit (*)')
-          .eq('league_id', leagueId)
-          .gt('date', new Date().toISOString())
-          .order('date', { ascending: true })
-          .limit(1)
-          .single();
-  
-        if (!nextRaceError) setNextRace(nextRaceData);
-  
-        // Stats
-        const { data: statsData, error: statsError } = await supabase
-          .from('race_result')
-          .select(`race_position, points, best_lap, session (name), race:race!inner(id, league_id)`)
-          .eq('pilot_id', pilotId)
-          .eq('race.league_id', leagueId);
-  
-        if (statsError) throw statsError;
-  
-        const processedStats = statsData.map(r => ({
-          race_position: r.race_position,
-          points: r.points,
-          best_lap: r.best_lap,
-          session_name: r.session?.name || null,
-        }));
-  
-        const stats = {
-          totalRaces: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).length,
-          podiums: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position <= 3).length,
-          wins: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position === 1).length,
-          totalPoints: processedStats.reduce((sum, r) => sum + (r.points || 0), 0),
-          bestPosition: Math.min(...processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).map(r => r.race_position ?? 999)),
-          polePosition: processedStats.filter(r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1).length,
-        };
-  
-        setPilotStats(stats);
-  
-        // Progreso por carrera
-        const { data: positionsData, error: positionsError } = await supabase
-          .from('race_result')
-          .select(`race_position, race:race!inner(id, date, league_id)`)
-          .eq('pilot_id', pilotId)
-          .eq('race.league_id', leagueId)
-          .in('session_id', [
-            '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
-            '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
-          ])
-          .order('date', { foreignTable: 'race', ascending: true });
-  
-        if (positionsError) throw positionsError;
-  
-        const validPositions = positionsData
-          .filter(p => p.race !== null && p.race_position !== null)
-          .map(p => ({
-            position: p.race_position!,
-            date: p.race!.date
-          }));
-  
-        setPositionData({
-          labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
-          datasets: [{
-            data: validPositions.map(p => p.position)
-          }]
-        });
-  
-        // Progreso campeonato
-        const { data: allResultsData, error: allResultsError } = await supabase
-          .from('race_result')
-          .select(`pilot_id, points, race (id, date, name)`)
-          .order('date', { foreignTable: 'race', ascending: true });
-  
-        if (allResultsError) throw allResultsError;
-  
-        const processedResults = (allResultsData as any[]).filter(r => r.race !== null).map(r => ({
-          pilot_id: r.pilot_id,
-          points: r.points || 0,
-          race_id: r.race.id,
-          date: r.race.date,
-          race_name: r.race.name
-        }));
-  
-        const races = Array.from(new Set(processedResults.map(r => r.race_id)))
-          .map(raceId => {
-            const raceData = processedResults.find(r => r.race_id === raceId);
-            return {
-              id: raceId,
-              date: raceData?.date || '',
-              name: raceData?.race_name || ''
-            };
-          })
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  
-        const championshipData: {
-          raceId: string;
-          date: string;
-          raceName: string;
-          standings: {
-            pilot_id: string;
-            totalPoints: number;
-          }[];
-        }[] = [];
-  
-        let accumulatedPoints: Record<string, number> = {};
-  
-        for (const race of races) {
-          const raceResults = processedResults.filter(r => r.race_id === race.id);
-  
-          for (const result of raceResults) {
-            accumulatedPoints[result.pilot_id] =
-              (accumulatedPoints[result.pilot_id] || 0) + result.points;
-          }
-  
-          championshipData.push({
-            raceId: race.id,
-            date: race.date,
-            raceName: race.name,
-            standings: Object.entries(accumulatedPoints)
-              .map(([pilot_id, totalPoints]) => ({ pilot_id, totalPoints }))
-              .sort((a, b) => b.totalPoints - a.totalPoints)
-          });
-        }
-  
-        const pilotChampionshipPositions = championshipData.map(raceData => {
-          const pilotStanding = raceData.standings.findIndex(
-            standing => standing.pilot_id === pilotId
-          );
-  
-          return {
-            date: raceData.date,
-            raceName: raceData.raceName,
-            position: pilotStanding !== -1 ? pilotStanding + 1 : null
-          };
-        }).filter(data => data.position !== null);
-  
-        setChampionshipPositionData({
-          labels: pilotChampionshipPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
-          datasets: [{
-            data: pilotChampionshipPositions.map(p => p.position!)
-          }],
-          raceNames: pilotChampionshipPositions.map(p => p.raceName)
-        });
-  
+        if (leaguesError) throw leaguesError;
+        setLeagueIds(leagues.map(l => l.id));
       } catch (error) {
-        console.error('Error fetching league-related data:', error);
-        setError('Error cargando datos de la liga');
-      } finally {
-        setLoading(false);
+        console.error('Error fetching leagues:', error);
+        setError('Error cargando las ligas');
       }
     }
-  
-    fetchEverythingElse();
-  }, [pilot, leagueId]);  
-  
+    fetchLeagues();
+  }, [selectedSeasonId]);
+
+  // 3. Fetch everything else (Next race, stats, charts)
+  const fetchEverythingElse = useCallback(async () => {
+    if (!pilot || leagueIds.length === 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const pilotId = pilot.id;
+
+      // Next race
+      const { data: nextRaceData, error: nextRaceError } = await supabase
+        .from('race')
+        .select('*, circuit (*)')
+        .in('league_id', leagueIds)
+        .gt('date', new Date().toISOString())
+        .order('date', { ascending: true })
+        .limit(1)
+        .single();
+
+      if (!nextRaceError) setNextRace(nextRaceData);
+
+      // Stats
+      const { data: statsData, error: statsError } = await supabase
+        .from('race_result')
+        .select(`race_position, points, best_lap, session (name), race:race!inner(id, league_id)`)
+        .eq('pilot_id', pilotId)
+        .in('race.league_id', leagueIds);
+
+      if (statsError) throw statsError;
+
+      const processedStats = statsData.map(r => ({
+        race_position: r.race_position,
+        points: r.points,
+        best_lap: r.best_lap,
+        session_name: r.session?.name || null,
+      }));
+
+      const stats = {
+        totalRaces: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).length,
+        podiums: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position <= 3).length,
+        wins: processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera') && r.race_position === 1).length,
+        totalPoints: processedStats.reduce((sum, r) => sum + (r.points || 0), 0),
+        bestPosition: Math.min(...processedStats.filter(r => r.session_name?.toLowerCase().includes('carrera')).map(r => r.race_position ?? 999)),
+        polePosition: processedStats.filter(r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1).length,
+      };
+
+      setPilotStats(stats);
+
+      // Progreso por carrera
+      const { data: positionsData, error: positionsError } = await supabase
+        .from('race_result')
+        .select(`race_position, race:race!inner(id, date, league_id)`)
+        .eq('pilot_id', pilotId)
+        .in('race.league_id', leagueIds)
+        .in('session_id', [
+          '483d8139-1a8a-4ede-a738-d75fb0cb8849', // Carrera I
+          '149d57f5-b84f-4518-b174-d8674c581def'  // Carrera II
+        ])
+        .order('date', { foreignTable: 'race', ascending: true });
+
+      if (positionsError) throw positionsError;
+
+      const validPositions = positionsData
+        .filter(p => p.race !== null && p.race_position !== null)
+        .map(p => ({
+          position: p.race_position!,
+          date: p.race!.date
+        }));
+
+      setPositionData({
+        labels: validPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
+        datasets: [{
+          data: validPositions.map(p => p.position)
+        }]
+      });
+
+      // Progreso campeonato
+      const { data: allResultsData, error: allResultsError } = await supabase
+        .from('race_result')
+        .select(`pilot_id, points, race (id, date, name, league_id)`)
+        .in('race.league_id', leagueIds)
+        .order('date', { foreignTable: 'race', ascending: true });
+
+      if (allResultsError) throw allResultsError;
+
+      const processedResults = (allResultsData as any[]).filter(r => r.race !== null).map(r => ({
+        pilot_id: r.pilot_id,
+        points: r.points || 0,
+        race_id: r.race.id,
+        date: r.race.date,
+        race_name: r.race.name
+      }));
+
+      const races = Array.from(new Set(processedResults.map(r => r.race_id)))
+        .map(raceId => {
+          const raceData = processedResults.find(r => r.race_id === raceId);
+          return {
+            id: raceId,
+            date: raceData?.date || '',
+            name: raceData?.race_name || ''
+          };
+        })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const championshipData: {
+        raceId: string;
+        date: string;
+        raceName: string;
+        standings: {
+          pilot_id: string;
+          totalPoints: number;
+        }[];
+      }[] = [];
+
+      let accumulatedPoints: Record<string, number> = {};
+
+      for (const race of races) {
+        const raceResults = processedResults.filter(r => r.race_id === race.id);
+
+        for (const result of raceResults) {
+          accumulatedPoints[result.pilot_id] =
+            (accumulatedPoints[result.pilot_id] || 0) + result.points;
+        }
+
+        championshipData.push({
+          raceId: race.id,
+          date: race.date,
+          raceName: race.name,
+          standings: Object.entries(accumulatedPoints)
+            .map(([pilot_id, totalPoints]) => ({ pilot_id, totalPoints }))
+            .sort((a, b) => b.totalPoints - a.totalPoints)
+        });
+      }
+
+      const pilotChampionshipPositions = championshipData.map(raceData => {
+        const pilotStanding = raceData.standings.findIndex(
+          standing => standing.pilot_id === pilotId
+        );
+        return {
+          date: raceData.date,
+          raceName: raceData.raceName,
+          position: pilotStanding !== -1 ? pilotStanding + 1 : null
+        };
+      }).filter(data => data.position !== null);
+
+      setChampionshipPositionData({
+        labels: pilotChampionshipPositions.map(p => format(new Date(p.date), 'MMM d', { locale: es })),
+        datasets: [{
+          data: pilotChampionshipPositions.map(p => p.position!)
+        }],
+        raceNames: pilotChampionshipPositions.map(p => p.raceName)
+      });
+
+    } catch (error) {
+      console.error('Error fetching league-related data:', error);
+      setError('Error cargando datos de la liga');
+    } finally {
+      setLoading(false);
+    }
+  }, [pilot, leagueIds]);
+
   useEffect(() => {
-    async function fetchResults() {
-      if (!pilot || !selectedSeasonId) return;
-  
-      setLoading(true);
-      setError(null);
-  
-      try {  
-        // Fetch results
-        const { data, error } = await supabase
-          .from('race_result')
-          .select(`*, race:race!inner(*), pilot (*), session (*)`)
-          .eq('pilot_id', pilot.id)
-          .eq('race.league_id', leagueId)
-          .order('created_at', { ascending: false })
-          .limit(12);
-  
-        if (error) throw error;
-        setResults(data || []);
-      } catch (err) {
-        console.error(err);
-        setError('Error loading results');
-      } finally {
-        setLoading(false);
-      }
+    fetchEverythingElse();
+  }, [pilot, leagueIds, fetchEverythingElse]);
+
+  // 4. Fetch results (filtrado por leagueIds)
+  const fetchResults = useCallback(async () => {
+    if (!pilot || leagueIds.length === 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('race_result')
+        .select(`*, race:race!inner(*), pilot (*), session (*)`)
+        .eq('pilot_id', pilot.id)
+        .in('race.league_id', leagueIds)
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      if (error) throw error;
+      setResults(data || []);
+    } catch (err) {
+      console.error(err);
+      setError('Error loading results');
+    } finally {
+      setLoading(false);
     }
-  
+  }, [pilot, leagueIds]);
+
+  useEffect(() => {
     fetchResults();
-  }, [pilot, selectedSeasonId]);
-  
+  }, [pilot, leagueIds, fetchResults]);
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Refetch all
+    await Promise.all([
+      fetchEverythingElse(),
+      fetchResults()
+    ]);
+    setRefreshing(false);
+  }, [fetchEverythingElse, fetchResults]);
+
   const filteredResults = results.filter(
     result => result.session && !/clasificaci[oó]n|qualifying/i.test(result.session.name)
   );
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -330,6 +339,14 @@ export default function HomeScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            progressBackgroundColor={colors.background}
+          />
+        }
       >
         {user && (
           <View style={styles.welcomeSection}>
@@ -408,7 +425,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 8, // Menos espacio blanco al final
+    paddingBottom: 8,
   },
   welcomeSection: {
     marginBottom: 16,
@@ -513,8 +530,8 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   resultsCard: {
-    marginBottom: 0, // Elimina espacio blanco debajo
-    paddingBottom: 4, // Ajusta para que quede pegado al final
+    marginBottom: 0,
+    paddingBottom: 4,
   },
   resultsList: {
     marginTop: 8,
@@ -532,23 +549,5 @@ const styles = StyleSheet.create({
   },
   resultInfo: {
     flex: 1,
-  },
-  resultRaceName: {
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  resultDate: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  resultPositionContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  resultPosition: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 4,
   },
 });
