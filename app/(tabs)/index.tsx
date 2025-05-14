@@ -18,6 +18,7 @@ import {
   ResultsCardSkeleton,
 } from '@/components/Skeletons';
 import SeasonSelector from '@/components/SeasonSelector';
+import Toast from 'react-native-toast-message';
 
 type RaceResultWithRelations = RaceResult & {
   race: Race;
@@ -159,15 +160,15 @@ export default function HomeScreen() {
         session_name: r.session?.name || null,
       }));
 
+      // Mejor posición robusto
       const carrerasStats = processedStats.filter(
         r => r.session_name?.toLowerCase().includes('carrera') && typeof r.race_position === 'number'
       );
-      
       const bestPosition =
         carrerasStats.length > 0
           ? Math.min(...carrerasStats.map(r => r.race_position))
-          : "-";
-      
+          : null;
+
       const stats = {
         totalRaces: carrerasStats.length,
         podiums: carrerasStats.filter(r => r.race_position <= 3).length,
@@ -177,7 +178,7 @@ export default function HomeScreen() {
         polePosition: processedStats.filter(
           r => r.session_name?.toLowerCase().includes('clasificación') && r.race_position === 1
         ).length,
-      };      
+      };
 
       setPilotStats(stats);
 
@@ -296,9 +297,22 @@ export default function HomeScreen() {
         setChampionshipPositionData(null);
       }
 
+      Toast.show({
+        type: 'success',
+        text1: 'Datos cargados',
+        text2: 'Se han actualizado los datos correctamente.',
+        position: 'top',
+      });
+
     } catch (error) {
       console.error('Error fetching league-related data:', error);
       setError('Error cargando datos de la liga');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'No se han podido cargar los datos.',
+        position: 'top',
+      });
     } finally {
       setLoading(false);
     }
@@ -327,6 +341,12 @@ export default function HomeScreen() {
     } catch (err) {
       console.error(err);
       setError('Error loading results');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'No se han podido cargar los resultados.',
+        position: 'top',
+      });
     } finally {
       setLoading(false);
     }
@@ -339,18 +359,30 @@ export default function HomeScreen() {
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Refetch all
-    await Promise.all([
-      fetchEverythingElse(),
-      fetchResults()
-    ]);
+    try {
+      await Promise.all([
+        fetchEverythingElse(),
+        fetchResults()
+      ]);
+      Toast.show({
+        type: 'success',
+        text1: 'Datos actualizados',
+        position: 'top',
+      });
+    } catch (e) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al actualizar',
+        text2: e.message || 'Inténtalo de nuevo',
+        position: 'top',
+      });
+    }
     setRefreshing(false);
   }, [fetchEverythingElse, fetchResults]);
 
   const filteredResults = results.filter(
     result => result.session && !/clasificaci[oó]n|qualifying/i.test(result.session.name)
   );
-
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -405,7 +437,12 @@ export default function HomeScreen() {
             )}
 
             {pilotStats && (
-              <StatsCard stats={pilotStats} />
+              <StatsCard
+                stats={{
+                  ...pilotStats,
+                  bestPosition: pilotStats.bestPosition !== null ? pilotStats.bestPosition : '-'
+                }}
+              />
             )}
 
             {positionData && (
@@ -433,142 +470,20 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
+      <Toast />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  welcomeSection: {
-    marginBottom: 16,
-  },
-  welcomeText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    fontSize: 16,
-    marginTop: 4,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    marginTop: 32,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    marginTop: 32,
-  },
-  errorText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  nextRaceCard: {
-    marginBottom: 18,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    justifyContent: 'space-between',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  nextRaceContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  circuitImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 12,
-    marginRight: 12,
-    backgroundColor: '#eee',
-  },
-  raceInfo: {
-    flex: 1,
-  },
-  raceName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  raceCircuit: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  raceDate: {
-    fontSize: 14,
-    marginTop: 4,
-    fontWeight: 'bold',
-  },
-  statsCard: {
-    marginBottom: 18,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  statItem: {
-    width: '30%',
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  statIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  graphCard: {
-    marginBottom: 18,
-  },
-  resultsCard: {
-    marginBottom: 0,
-    paddingBottom: 4,
-  },
-  resultsList: {
-    marginTop: 8,
-  },
-  resultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
-    justifyContent: 'space-between',
-  },
-  lastResultItem: {
-    borderBottomWidth: 0,
-  },
-  resultInfo: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 8 },
+  welcomeSection: { marginBottom: 16 },
+  welcomeText: { fontSize: 22, fontWeight: 'bold' },
+  subtitle: { fontSize: 16, marginTop: 4 },
+  loadingContainer: { flex: 1, alignItems: 'center', marginTop: 32 },
+  loadingText: { marginTop: 12, fontSize: 16 },
+  errorContainer: { flex: 1, alignItems: 'center', marginTop: 32 },
+  errorText: { fontSize: 16, fontWeight: 'bold' },
 });
