@@ -6,6 +6,29 @@ import { supabase } from '@/lib/supabase';
 import SeasonSelector from '@/components/SeasonSelector';
 import Toast from 'react-native-toast-message';
 
+type Pilot = {
+  id: string;
+  name: string;
+  avatar_url?: string;
+};
+
+type Team = {
+  id: string;
+  name: string;
+  logo_url?: string;
+};
+
+type Standing = {
+  pilot: Pilot;
+  totalPoints: number;
+  team: Team | null;
+};
+
+type TeamStanding = {
+  team: Team;
+  totalPoints: number;
+};
+
 const TABS = [
   { key: 'drivers', title: 'Pilotos' },
   { key: 'teams', title: 'Equipos' },
@@ -78,7 +101,6 @@ export default function StandingsScreen() {
     }
   }, [leagueIds]);
 
-  // 3. Standings de pilotos y equipos
   const fetchStandings = useCallback(async () => {
     if (!leagueIds.length) return;
     setLoading(true);
@@ -89,69 +111,71 @@ export default function StandingsScreen() {
         .from('race')
         .select('id')
         .in('league_id', leagueIds);
-
+  
       if (raceError) throw raceError;
-
+  
       const raceIds = races.map(r => r.id);
-
+  
       // 2. Obtener resultados de esas carreras
       const { data: results, error } = await supabase
         .from('race_result')
         .select('pilot_id, points, pilot:pilot(id, name, avatar_url), race_id')
-        .in('race_id', raceIds);
-
+        .in('race_id', raceIds)
+  
       if (error) throw error;
-
+  
       if (!results || results.length === 0) {
         setDriverStandings([]);
         setTeamStandings([]);
         setLoading(false);
         return;
       }
-
-      // Nuevo: Si todos los resultados tienen puntos 0, considera que no hay carreras reales
+  
       const allZeroPoints = results.every(r => !r.points || r.points === 0);
       if (allZeroPoints) {
         setDriverStandings([]);
         setTeamStandings([]);
         setLoading(false);
         return;
-      } 
-
-      // Relación piloto-equipo-temporada
+      }
+  
+      // 3. Relación piloto-equipo-temporada
       const { data: pilotTeams, error: ptsError } = await supabase
         .from('pilot_team_season')
         .select('pilot_id, team:team_id(id, name, logo_url)')
         .eq('season_id', selectedSeasonId)
         .in('league_id', leagueIds);
-
+  
       if (ptsError) throw ptsError;
-      const pilotTeamMap = {};
-      pilotTeams.forEach(row => {
-        pilotTeamMap[row.pilot_id] = row.team;
+  
+      const pilotTeamMap: Record<string, Team> = {};
+      pilotTeams.forEach(row => { 
+        if (row.team) {
+          pilotTeamMap[row.pilot_id] = row.team as unknown as Team;
+        }
       });
-
-      // PILOTOS
-      const standingsMap = {};
+  
+      // 4. Clasificación de pilotos
+      const standingsMap: Record<string, Standing> = {};
       results.forEach(r => {
         if (!standingsMap[r.pilot_id]) {
           standingsMap[r.pilot_id] = {
-            pilot: r.pilot,
+            pilot: r.pilot as unknown as Pilot,
             totalPoints: 0,
             team: pilotTeamMap[r.pilot_id] || null,
           };
         }
         standingsMap[r.pilot_id].totalPoints += r.points || 0;
       });
+  
       const standingsArr = Object.values(standingsMap).sort((a, b) => b.totalPoints - a.totalPoints);
-
       setDriverStandings(standingsArr);
-
-      // EQUIPOS
-      const teamMap = {};
+  
+      // 5. Clasificación de equipos
+      const teamMap: Record<string, TeamStanding> = {};
       results.forEach(r => {
         const team = pilotTeamMap[r.pilot_id];
-        if (!team) return; // Ignora pilotos sin equipo en esta temporada
+        if (!team) return;
         if (!teamMap[team.id]) {
           teamMap[team.id] = {
             team,
@@ -160,10 +184,10 @@ export default function StandingsScreen() {
         }
         teamMap[team.id].totalPoints += r.points || 0;
       });
+  
       const teamsArr = Object.values(teamMap).sort((a, b) => b.totalPoints - a.totalPoints);
-
       setTeamStandings(teamsArr);
-
+  
       Toast.show({
         type: 'success',
         text1: 'Clasificación actualizada',
