@@ -66,6 +66,12 @@ export default function StandingsScreen() {
     fetchLeagues();
   }, [selectedSeasonId]);
 
+  // Limpiar standings al cambiar temporada
+  useEffect(() => {
+    setDriverStandings([]);
+    setTeamStandings([]);
+  }, [selectedSeasonId]);
+
   // 3. Standings de pilotos y equipos
   const fetchStandings = useCallback(async () => {
     if (!leagueIds.length) return;
@@ -145,9 +151,12 @@ export default function StandingsScreen() {
     }
   }, [leagueIds, selectedSeasonId]);
 
+  // Cuando cambian las ligas, carga standings
   useEffect(() => {
-    fetchStandings();
-  }, [fetchStandings]);
+    if (leagueIds.length > 0) {
+      fetchStandings();
+    }
+  }, [leagueIds]);
 
   // Pull to refresh
   const onRefresh = useCallback(async () => {
