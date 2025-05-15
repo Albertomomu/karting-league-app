@@ -32,6 +32,8 @@ export default function StandingsScreen() {
       setLoading(true);
       setError(null);
       try {
+        setDriverStandings([]);
+        setTeamStandings([]);
         const { data, error } = await supabase
           .from('season')
           .select('id, name, is_active')
@@ -68,9 +70,13 @@ export default function StandingsScreen() {
 
   // Limpiar standings al cambiar temporada
   useEffect(() => {
-    setDriverStandings([]);
-    setTeamStandings([]);
-  }, [selectedSeasonId]);
+    if (leagueIds.length > 0) {
+      fetchStandings();
+    } else {
+      setDriverStandings([]);
+      setTeamStandings([]);
+    }
+  }, [leagueIds]);
 
   // 3. Standings de pilotos y equipos
   const fetchStandings = useCallback(async () => {
@@ -78,11 +84,21 @@ export default function StandingsScreen() {
     setLoading(true);
     setError(null);
     try {
-      // Resultados de carrera
+      // 1. Obtener las carreras de las ligas
+      const { data: races, error: raceError } = await supabase
+        .from('race')
+        .select('id')
+        .in('league_id', leagueIds);
+
+      if (raceError) throw raceError;
+
+      const raceIds = races.map(r => r.id);
+
+      // 2. Obtener resultados de esas carreras
       const { data: results, error } = await supabase
         .from('race_result')
-        .select('pilot_id, points, pilot:pilot(id, name, avatar_url), race:race(id, league_id)')
-        .in('race.league_id', leagueIds);
+        .select('pilot_id, points, pilot:pilot(id, name, avatar_url), race_id')
+        .in('race_id', raceIds);
 
       if (error) throw error;
 
@@ -92,7 +108,15 @@ export default function StandingsScreen() {
         setLoading(false);
         return;
       }
-      //console.log("Resultados", results);
+
+      // Nuevo: Si todos los resultados tienen puntos 0, considera que no hay carreras reales
+      const allZeroPoints = results.every(r => !r.points || r.points === 0);
+      if (allZeroPoints) {
+        setDriverStandings([]);
+        setTeamStandings([]);
+        setLoading(false);
+        return;
+      } 
 
       // Relación piloto-equipo-temporada
       const { data: pilotTeams, error: ptsError } = await supabase
