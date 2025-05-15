@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { supabase, Season, Race } from '@/lib/supabase';
+import { supabase, Season, Race, Pilot } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'expo-router';
@@ -29,10 +29,24 @@ export default function RacesScreen() {
   const [races, setRaces] = useState<RaceWithCircuit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [pilot, setPilot] = useState<Pilot | null>(null);
+  const [pilotLeagueId, setPilotLeagueId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
+
+    async function fetchPilot() {
+      const { data: pilotData, error: pilotError } = await supabase
+      .from('pilot')
+      .select('*')
+      .eq('user_id', user?.id)
+      .single();
+
+    if (pilotError) throw pilotError;
+    console.log('Pilot cargado:', pilotData); // ✅ Aquí ya lo tienes
+    setPilot(pilotData);
+    }
+
     async function fetchSeasons() {
       try {
         setLoading(true);
@@ -56,8 +70,32 @@ export default function RacesScreen() {
       }
     }
 
+    fetchPilot();
     fetchSeasons();
   }, []);
+
+  useEffect(() => {
+    async function fetchPilotLeague() {
+      if (!pilot || !selectedSeason) return;
+  
+      const { data, error } = await supabase
+        .from('pilot_team_season')
+        .select('league_id')
+        .eq('pilot_id', pilot.id)
+        .eq('season_id', selectedSeason)
+        .single(); // esperamos una única fila por piloto/temporada
+  
+      if (error) {
+        console.error('Error al obtener la liga del piloto:', error);
+        setPilotLeagueId(null);
+      } else {
+        console.log('Liga del piloto:', data?.league_id);
+        setPilotLeagueId(data.league_id);
+      }
+    }
+  
+    fetchPilotLeague();
+  }, [pilot, selectedSeason]);
 
   useEffect(() => {
     async function fetchRaces() {
@@ -67,25 +105,11 @@ export default function RacesScreen() {
         setLoading(true);
         setError(null);
 
-        // 1. Buscar leagues de la temporada seleccionada
-        const { data: leagues, error: leaguesError } = await supabase
-          .from('league')
-          .select('id')
-          .eq('season_id', selectedSeason);
-
-        if (leaguesError) throw leaguesError;
-
-        const leagueIds = leagues.map(l => l.id);
-        if (leagueIds.length === 0) {
-          setRaces([]);
-          return;
-        }
-
-        // 2. Buscar carreras que pertenecen a esas leagues
+        // 2. Buscar carreras que pertenecen a la liga de esa temporada seleccionada
         const { data: racesData, error: racesError } = await supabase
           .from('race')
           .select('*, circuit (*)') // Join con circuit
-          .in('league_id', leagueIds)
+          .eq('league_id', pilotLeagueId)
           .order('date', { ascending: true });
 
         if (racesError) throw racesError;
