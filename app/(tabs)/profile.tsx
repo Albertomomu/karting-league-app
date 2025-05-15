@@ -85,14 +85,18 @@ export default function ProfileScreen() {
           <>
             <View style={styles.profileHeader}>
               <View style={[styles.avatarContainer, { backgroundColor: colors.primaryLight }]}>
-                {user?.user_metadata?.avatar_url ? (
-                  <Image
-                    source={{ uri: user.user_metadata.avatar_url }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <MaterialCommunityIcons name="account" size={40} color={colors.primary} />
-                )}
+              {user?.user_metadata?.avatar_url ? (
+                <Image
+                  source={{ uri: user.user_metadata.avatar_url }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <View style={[styles.avatarFallback, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.avatarInitial, { color: colors.white }]}>
+                    {(user?.user_metadata?.name || pilotData?.name || 'P')[0]?.toUpperCase()}
+                  </Text>
+                </View>
+              )}
               </View>
 
               <View style={styles.profileInfo}>
@@ -388,5 +392,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  avatarFallback: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    fontSize: 32,
+    fontWeight: 'bold',
   },
 });
