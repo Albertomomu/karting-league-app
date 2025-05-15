@@ -43,7 +43,6 @@ export default function RacesScreen() {
       .single();
 
     if (pilotError) throw pilotError;
-    console.log('Pilot cargado:', pilotData); // ✅ Aquí ya lo tienes
     setPilot(pilotData);
     }
 
@@ -89,7 +88,6 @@ export default function RacesScreen() {
         console.error('Error al obtener la liga del piloto:', error);
         setPilotLeagueId(null);
       } else {
-        console.log('Liga del piloto:', data?.league_id);
         setPilotLeagueId(data.league_id);
       }
     }
@@ -124,7 +122,7 @@ export default function RacesScreen() {
     }
 
     fetchRaces();
-  }, [selectedSeason]);
+  }, [selectedSeason, pilotLeagueId]);
 
   const getRaceStatus = (race: Race) => {
     const now = new Date();
