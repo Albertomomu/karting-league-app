@@ -86,11 +86,20 @@ export default function StandingsScreen() {
 
       if (error) throw error;
 
+      if (!results || results.length === 0) {
+        setDriverStandings([]);
+        setTeamStandings([]);
+        setLoading(false);
+        return;
+      }
+      //console.log("Resultados", results);
+
       // Relación piloto-equipo-temporada
       const { data: pilotTeams, error: ptsError } = await supabase
         .from('pilot_team_season')
         .select('pilot_id, team:team_id(id, name, logo_url)')
-        .eq('season_id', selectedSeasonId);
+        .eq('season_id', selectedSeasonId)
+        .in('league_id', leagueIds);
 
       if (ptsError) throw ptsError;
       const pilotTeamMap = {};
@@ -233,17 +242,24 @@ export default function StandingsScreen() {
                   {idx + 1}
                 </Text>
                 <View style={styles.pilotCell}>
-                  {row.pilot.avatar_url ? (
-                    <Image
-                      source={{ uri: row.pilot.avatar_url }}
-                      style={styles.avatar}
-                    />
-                  ) : (
-                    <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
-                  )}
-                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                    {row.pilot.name}
-                  </Text>
+                {row.pilot.avatar_url ? (
+                  <Image
+                    source={{ uri: row.pilot.avatar_url }}
+                    style={styles.avatar}
+                  />
+                ) : (
+                  <View style={[
+                    styles.avatar,
+                    { backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }
+                  ]}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                      {row.pilot.name?.[0]?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                )}
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                  {row.pilot.name}
+                </Text>
                 </View>
                 <View style={styles.teamCell}>
                   {row.team?.logo_url ? (
