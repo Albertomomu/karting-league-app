@@ -37,15 +37,15 @@ export default function RacesScreen() {
       try {
         setLoading(true);
         const { data, error } = await supabase
-          .from('season')
-          .select('*')
-          .order('start_date', { ascending: false });
+        .from('season')
+        .select('*')
+        .order('is_active', { ascending: false }) // 👈 primero las activas
+        .order('start_date', { ascending: false }); // luego por fecha
 
         if (error) throw error;
 
         setSeasons(data || []);
 
-        // Set active season as default
         const activeSeason = data?.find(season => season.is_active);
         setSelectedSeason(activeSeason?.id || data?.[0]?.id || null);
       } catch (error) {
@@ -65,15 +65,32 @@ export default function RacesScreen() {
 
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        setError(null);
+
+        // 1. Buscar leagues de la temporada seleccionada
+        const { data: leagues, error: leaguesError } = await supabase
+          .from('league')
+          .select('id')
+          .eq('season_id', selectedSeason);
+
+        if (leaguesError) throw leaguesError;
+
+        const leagueIds = leagues.map(l => l.id);
+        if (leagueIds.length === 0) {
+          setRaces([]);
+          return;
+        }
+
+        // 2. Buscar carreras que pertenecen a esas leagues
+        const { data: racesData, error: racesError } = await supabase
           .from('race')
-          .select('*, circuit (*)') // <-- JOIN circuit aquí
-          .eq('season_id', selectedSeason)
+          .select('*, circuit (*)') // Join con circuit
+          .in('league_id', leagueIds)
           .order('date', { ascending: true });
 
-        if (error) throw error;
+        if (racesError) throw racesError;
 
-        setRaces(data || []);
+        setRaces(racesData || []);
       } catch (error) {
         console.error('Error fetching races:', error);
         setError('Error al cargar las carreras');
@@ -88,7 +105,7 @@ export default function RacesScreen() {
   const getRaceStatus = (race: Race) => {
     const now = new Date();
     const raceDate = new Date(race.date);
-    
+
     if (now > raceDate) {
       return {
         status: 'completed',
@@ -156,7 +173,7 @@ export default function RacesScreen() {
                 <Text style={[styles.raceName, { color: colors.text }]}>{race.name}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: status.color }]}>
                   <MaterialCommunityIcons 
-                    name={status.icon} 
+                    name={status.icon as any} 
                     size={16} 
                     color="#fff" 
                     style={styles.statusIcon}

@@ -17,6 +17,7 @@ const lightColors = {
   errorLight: '#FEE2E2',
   warning: '#F59E0B',
   white: '#FFFFFF',
+  info: '#3B82F6', // Blue
 };
 
 const darkColors = {
@@ -34,6 +35,7 @@ const darkColors = {
   errorLight: '#7F1D1D',
   warning: '#FBBF24',
   white: '#FFFFFF',
+  info: '#60A5FA', // Light Blue
 };
 
 type ThemeColors = typeof lightColors;
