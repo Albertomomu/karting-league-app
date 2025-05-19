@@ -331,10 +331,13 @@ export default function StandingsScreen() {
             {driverStandings.map((row, idx) => {
               const isCurrentPilot = row.pilot.id === currentPilotId;
               return (
-                <View key={row.pilot.id} style={styles.row}>
+                <View key={row.pilot.id}>
                   <View style={[
                     styles.rowContent,
-                    isCurrentPilot && styles.highlightRow
+                    isCurrentPilot && {
+                      backgroundColor: colors.primary + '22',
+                      marginHorizontal: 0,
+                    }
                   ]}>
                     <Text style={[
                       styles.position,
@@ -398,10 +401,13 @@ export default function StandingsScreen() {
             {teamStandings.map((row, idx) => {
               const isCurrentTeam = row.team.id === currentTeamId; // currentTeamId: el equipo del piloto logueado
               return (
-                <View key={row.team.id} style={styles.row}>
+                <View key={row.team.id}>
                   <View style={[
                     styles.rowContent,
-                    isCurrentTeam && styles.highlightRow
+                    isCurrentTeam && {
+                      backgroundColor: colors.primary + '22',
+                      marginHorizontal: 0,
+                    }
                   ]}>
                     <Text
                       style={[
@@ -445,7 +451,7 @@ export default function StandingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 0 },
+  scrollContent: { paddingBottom: 32, paddingTop: 0 },
   tabs: { flexDirection: 'row', marginBottom: 12, marginTop: 8 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   tabText: { fontSize: 16, fontWeight: 'bold' },
@@ -462,27 +468,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 15,
     color: '#888',
-  },
-  row: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 8,
   },
   rowContent: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
     paddingVertical: 8,
-    // Si quieres que el fondo llegue a los bordes, NO pongas paddingHorizontal aquí,
-    // sino en el contenedor principal (scrollContent)
-  },
-  highlightRow: {
-    backgroundColor: '#ffeec2', // O el color que prefieras
+    paddingHorizontal: 12,
   },
   position: { width: 32, fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
   pilotCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, backgroundColor: '#eee' },
   teamCell: { width: 90, flexDirection: 'row', alignItems: 'center' },
-  teamAvatar: { width: 22, height: 22, borderRadius: 11, marginRight: 6, backgroundColor: '#eee' },
+  teamAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 6, backgroundColor: '#eee' },
   teamName: { fontSize: 13, flexShrink: 1 },
   name: { fontSize: 15, flexShrink: 1 },
   points: { width: 70, textAlign: 'right', fontWeight: 'bold', fontSize: 15 },
