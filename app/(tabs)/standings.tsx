@@ -48,7 +48,34 @@ export default function StandingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPilotId, setCurrentPilotId] = useState<string | null>(null);
+  const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
 
+  // 0. Obtener el piloto de la sesión actual
+  useEffect(() => {
+    async function fetchCurrentPilotAndTeam() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: pilot } = await supabase
+        .from('pilot')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      if (pilot) {
+        setCurrentPilotId(pilot.id);
+        // Busca el equipo del piloto en la temporada seleccionada
+        const { data: pts } = await supabase
+          .from('pilot_team_season')
+          .select('team_id')
+          .eq('pilot_id', pilot.id)
+          .eq('season_id', selectedSeasonId)
+          .single();
+        if (pts?.team_id) setCurrentTeamId(pts.team_id);
+      }
+    }
+    fetchCurrentPilotAndTeam();
+  }, [selectedSeasonId]);
+  
   // 1. Cargar temporadas
   useEffect(() => {
     async function fetchSeasons() {
@@ -301,59 +328,65 @@ export default function StandingsScreen() {
               <Text style={[styles.headerCell, { width: 90 }]}>Equipo</Text>
               <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>Puntos</Text>
             </View>
-            {driverStandings.map((row, idx) => (
-              <View key={row.pilot.id} style={styles.row}>
-                <Text
-                  style={[
-                    styles.position,
-                    { color: PODIUM_COLORS[idx] || colors.primary }
-                  ]}
-                >
-                  {idx + 1}
-                </Text>
-                <View style={styles.pilotCell}>
-                  {row.pilot.avatar_url ? (
-                    <Image
-                      source={{ uri: row.pilot.avatar_url }}
-                      style={styles.avatar}
-                    />
-                  ) : (
-                    <View style={[
-                      styles.avatar,
-                      { backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }
+            {driverStandings.map((row, idx) => {
+              const isCurrentPilot = row.pilot.id === currentPilotId;
+              return (
+                <View key={row.pilot.id} style={styles.row}>
+                  <View style={[
+                    styles.rowContent,
+                    isCurrentPilot && styles.highlightRow
+                  ]}>
+                    <Text style={[
+                      styles.position,
+                      { color: PODIUM_COLORS[idx] || colors.primary }
                     ]}>
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
-                        {row.pilot.name?.[0]?.toUpperCase() || '?'}
+                      {idx + 1}
+                    </Text>
+                    <View style={styles.pilotCell}>
+                      {row.pilot.avatar_url ? (
+                        <Image
+                          source={{ uri: row.pilot.avatar_url }}
+                          style={styles.avatar}
+                        />
+                      ) : (
+                        <View style={[
+                          styles.avatar,
+                          { backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }
+                        ]}>
+                          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                            {row.pilot.name?.[0]?.toUpperCase() || '?'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                        {row.pilot.name}
                       </Text>
                     </View>
-                  )}
-                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                    {row.pilot.name}
-                  </Text>
+                    <View style={styles.teamCell}>
+                      {row.team?.logo_url ? (
+                        <Image
+                          source={{ uri: row.team.logo_url }}
+                          style={styles.teamAvatar}
+                        />
+                      ) : (
+                        <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
+                      )}
+                      <Text style={[styles.teamName, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {row.team?.name || '-'}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.points,
+                        { color: PODIUM_COLORS[idx] || colors.text }
+                      ]}
+                    >
+                      {row.totalPoints}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.teamCell}>
-                  {row.team?.logo_url ? (
-                    <Image
-                      source={{ uri: row.team.logo_url }}
-                      style={styles.teamAvatar}
-                    />
-                  ) : (
-                    <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
-                  )}
-                  <Text style={[styles.teamName, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {row.team?.name || '-'}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.points,
-                    { color: PODIUM_COLORS[idx] || colors.text }
-                  ]}
-                >
-                  {row.totalPoints}
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View style={styles.table}>
@@ -362,39 +395,47 @@ export default function StandingsScreen() {
               <Text style={[styles.headerCell, { flex: 1 }]}>Equipo</Text>
               <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>Puntos</Text>
             </View>
-            {teamStandings.map((row, idx) => (
-              <View key={row.team.id} style={styles.row}>
-                <Text
-                  style={[
-                    styles.position,
-                    { color: PODIUM_COLORS[idx] || colors.primary }
-                  ]}
-                >
-                  {idx + 1}
-                </Text>
-                <View style={styles.pilotCell}>
-                  {row.team.logo_url ? (
-                    <Image
-                      source={{ uri: row.team.logo_url }}
-                      style={styles.teamAvatar}
-                    />
-                  ) : (
-                    <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
-                  )}
-                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                    {row.team.name}
-                  </Text>
+            {teamStandings.map((row, idx) => {
+              const isCurrentTeam = row.team.id === currentTeamId; // currentTeamId: el equipo del piloto logueado
+              return (
+                <View key={row.team.id} style={styles.row}>
+                  <View style={[
+                    styles.rowContent,
+                    isCurrentTeam && styles.highlightRow
+                  ]}>
+                    <Text
+                      style={[
+                        styles.position,
+                        { color: PODIUM_COLORS[idx] || colors.primary }
+                      ]}
+                    >
+                      {idx + 1}
+                    </Text>
+                    <View style={styles.pilotCell}>
+                      {row.team.logo_url ? (
+                        <Image
+                          source={{ uri: row.team.logo_url }}
+                          style={styles.teamAvatar}
+                        />
+                      ) : (
+                        <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
+                      )}
+                      <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                        {row.team.name}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.points,
+                        { color: PODIUM_COLORS[idx] || colors.text }
+                      ]}
+                    >
+                      {row.totalPoints}
+                    </Text>
+                  </View>
                 </View>
-                <Text
-                  style={[
-                    styles.points,
-                    { color: PODIUM_COLORS[idx] || colors.text }
-                  ]}
-                >
-                  {row.totalPoints}
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -423,11 +464,19 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#eee',
+  },
+  rowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingVertical: 8,
+    // Si quieres que el fondo llegue a los bordes, NO pongas paddingHorizontal aquí,
+    // sino en el contenedor principal (scrollContent)
+  },
+  highlightRow: {
+    backgroundColor: '#ffeec2', // O el color que prefieras
   },
   position: { width: 32, fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
   pilotCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
