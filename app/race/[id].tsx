@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import Header from '@/components/Header';
 import Card from '@/components/Card';
@@ -9,7 +9,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 
-// Tipos
 type Circuit = {
   id: string;
   name: string;
@@ -29,7 +28,10 @@ type RaceWithCircuit = Race & {
 type RaceResultWithSession = RaceResult & {
   pilot: Pilot;
   session: Session;
+  team?: { id: string; name: string; logo_url?: string } | null;
 };
+
+const PODIUM_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
 
 export default function RaceDetailsScreen() {
   const { colors } = useTheme();
@@ -41,6 +43,10 @@ export default function RaceDetailsScreen() {
 
   // --- MODIFICACIÓN: Estado para la sesión seleccionada
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  // --- MODIFICACIÓN: Para resaltar piloto y equipo logueado
+  const [currentPilotId, setCurrentPilotId] = useState<string | null>(null);
+  const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchRaceAndResults() {
@@ -69,7 +75,20 @@ export default function RaceDetailsScreen() {
           .order('race_position', { ascending: true });
 
         if (resultsError) throw resultsError;
-        setResults(resultsData || []);
+
+        // Obtener equipos de cada piloto en la temporada de la carrera
+        const { data: pilotTeams } = await supabase
+          .from('pilot_team_season')
+          .select('pilot_id, team:team_id(id, name, logo_url)')
+          .eq('season_id', raceData.season_id);
+
+        // Añadir equipo a cada resultado
+        const resultsWithTeam = (resultsData || []).map(res => ({
+          ...res,
+          team: pilotTeams?.find(pt => pt.pilot_id === res.pilot?.id)?.team || null,
+        }));
+
+        setResults(resultsWithTeam);
       } catch (err: any) {
         setError('Error al cargar los resultados.');
         console.error(err);
@@ -78,7 +97,7 @@ export default function RaceDetailsScreen() {
       }
     }
 
-    fetchRaceAndResults();
+    if (id) fetchRaceAndResults();
   }, [id]);
 
   // --- MODIFICACIÓN: Obtener sesiones únicas
@@ -95,10 +114,107 @@ export default function RaceDetailsScreen() {
     }
   }, [results]);
 
+  // --- MODIFICACIÓN: Obtener piloto y equipo logueado
+  useEffect(() => {
+    async function fetchCurrentPilotAndTeam() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !race) return;
+      const { data: pilot } = await supabase
+        .from('pilot')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      if (pilot) {
+        setCurrentPilotId(pilot.id);
+        const { data: pts } = await supabase
+          .from('pilot_team_season')
+          .select('team_id')
+          .eq('pilot_id', pilot.id)
+          .eq('season_id', race.season_id)
+          .single();
+        if (pts?.team_id) setCurrentTeamId(pts.team_id);
+      }
+    }
+    if (race) fetchCurrentPilotAndTeam();
+  }, [race]);
+
   const formatRaceDate = (dateString: string) => {
     const date = new Date(dateString);
     return format(date, "d 'de' MMMM, yyyy", { locale: es });
   };
+
+  // --- MODIFICACIÓN: Render tabla igual que standings
+  function renderResultsTable(filteredResults: RaceResultWithSession[]) {
+    if (!filteredResults.length) {
+      return (
+        <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
+          No hay resultados disponibles para esta sesión.
+        </Text>
+      );
+    }
+
+    return (
+      <View style={styles.table}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.headerCell, { width: 32 }]}>#</Text>
+          <Text style={[styles.headerCell, { flex: 1 }]}>Piloto</Text>
+          <Text style={[styles.headerCell, { width: 90 }]}>Equipo</Text>
+          <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>Puntos</Text>
+        </View>
+        {filteredResults.map((result, idx) => {
+          const isCurrentPilot = result.pilot?.id === currentPilotId;
+          const isCurrentTeam = result.team?.id === currentTeamId;
+          return (
+            <View
+              key={result.id}
+              style={[
+                styles.row,
+                isCurrentPilot && { backgroundColor: colors.primary + '22' }
+              ]}
+            >
+              <Text style={[
+                styles.position,
+                { color: PODIUM_COLORS[idx] || colors.primary }
+              ]}>
+                {result.race_position}
+              </Text>
+              <View style={styles.pilotCell}>
+                {/* Si tienes avatar, puedes mostrarlo aquí */}
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                  {result.pilot?.name}
+                </Text>
+              </View>
+              <View style={styles.teamCell}>
+                {result.team?.logo_url ? (
+                  <Image source={{ uri: result.team.logo_url }} style={styles.teamAvatar} />
+                ) : (
+                  <View style={[styles.teamAvatar, { backgroundColor: '#ccc' }]} />
+                )}
+                <Text
+                  style={[
+                    styles.teamName,
+                    isCurrentTeam && { color: colors.primary, fontWeight: 'bold' },
+                    !isCurrentTeam && { color: colors.textSecondary }
+                  ]}
+                  numberOfLines={1}
+                >
+                  {result.team?.name || '-'}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.points,
+                  { color: PODIUM_COLORS[idx] || colors.text }
+                ]}
+              >
+                {result.points ?? 0}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -137,7 +253,7 @@ export default function RaceDetailsScreen() {
             </Card>
           )}
 
-          {/* --- MODIFICACIÓN: Selector horizontal de sesiones --- */}
+          {/* Selector horizontal de sesiones */}
           {sessions.length > 0 && (
             <ScrollView
               horizontal
@@ -169,65 +285,11 @@ export default function RaceDetailsScreen() {
             </ScrollView>
           )}
 
-          {/* --- MODIFICACIÓN: Mostrar solo la sesión seleccionada --- */}
-          {selectedSessionId ? (
-            <View style={styles.sessionSection}>
-              <Text style={[styles.sessionTitle, { color: colors.primary }]}>
-                {sessions.find(s => s.id === selectedSessionId)?.name}
-              </Text>
-              <View style={styles.sessionResults}>
-                {results
-                  .filter(result => result.session?.id === selectedSessionId)
-                  .map(result => (
-                    <Card key={result.id} style={styles.resultCard}>
-                      <View style={styles.resultRow}>
-                        <Text style={[styles.position, { color: colors.primary }]}>
-                          {result.race_position}
-                        </Text>
-                        <View style={styles.pilotInfo}>
-                          <Text style={[styles.pilotName, { color: colors.text }]}>
-                            {result.pilot?.name}
-                          </Text>
-                          {result.pilot?.team && (
-                            <Text style={[styles.teamName, { color: colors.textSecondary }]}>
-                              {result.pilot.team}
-                            </Text>
-                          )}
-                        </View>
-                        <View style={styles.pointsBox}>
-                          <MaterialCommunityIcons name="star" size={16} color={colors.warning} />
-                          <Text style={[styles.points, { color: colors.text }]}>
-                            {result.points ?? 0}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.resultDetailsRow}>
-                        {result.best_lap && (
-                          <View style={styles.detailItem}>
-                            <MaterialCommunityIcons name="timer" size={16} color={colors.info} />
-                            <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                              Mejor vuelta: {result.best_lap}
-                            </Text>
-                          </View>
-                        )}
-                        {result.status && (
-                          <View style={styles.detailItem}>
-                            <MaterialCommunityIcons name="flag-checkered" size={16} color={colors.success} />
-                            <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                              {result.status}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </Card>
-                  ))}
-              </View>
-            </View>
-          ) : (
-            <Text style={[styles.noDataText, { color: colors.textSecondary }]}>
-              No hay resultados disponibles para esta sesión.
-            </Text>
-          )}
+          {/* Tabla de resultados de la sesión seleccionada */}
+          {selectedSessionId &&
+            renderResultsTable(
+              results.filter(result => result.session?.id === selectedSessionId)
+            )}
         </ScrollView>
       )}
     </View>
@@ -305,64 +367,35 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
   },
-  sessionSection: {
-    marginBottom: 28,
-  },
-  sessionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    marginTop: 8,
-  },
-  sessionResults: {},
-  resultCard: {
-    marginBottom: 10,
-    padding: 14,
-  },
-  resultRow: {
+  table: { marginTop: 0 },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#bbb',
+    paddingBottom: 5,
+    marginBottom: 5,
   },
-  position: {
-    fontSize: 22,
+  headerCell: {
     fontWeight: 'bold',
-    width: 36,
-    textAlign: 'center',
-  },
-  pilotInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  pilotName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  teamName: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  pointsBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  points: {
     fontSize: 15,
-    fontWeight: 'bold',
-    marginLeft: 4,
+    color: '#888',
   },
-  resultDetailsRow: {
-    flexDirection: 'row',
-    marginTop: 4,
-  },
-  detailItem: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
+  position: { width: 32, fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
+  pilotCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  avatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, backgroundColor: '#eee' },
+  teamCell: { width: 90, flexDirection: 'row', alignItems: 'center' },
+  teamAvatar: { width: 22, height: 22, borderRadius: 11, marginRight: 6, backgroundColor: '#eee' },
+  teamName: { fontSize: 13, flexShrink: 1 },
+  name: { fontSize: 15, flexShrink: 1 },
+  points: { width: 70, textAlign: 'right', fontWeight: 'bold', fontSize: 15 },
 });
