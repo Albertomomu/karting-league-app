@@ -99,6 +99,7 @@ export default function StandingsScreen() {
       setDriverStandings([]);
       setTeamStandings([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueIds]);
 
   const fetchStandings = useCallback(async () => {
@@ -111,68 +112,94 @@ export default function StandingsScreen() {
         .from('race')
         .select('id')
         .in('league_id', leagueIds);
-  
+
       if (raceError) throw raceError;
-  
+
       const raceIds = races.map(r => r.id);
-  
+
       // 2. Obtener resultados de esas carreras
-      const { data: results, error } = await supabase
-        .from('race_result')
-        .select('pilot_id, points, pilot:pilot(id, name, avatar_url), race_id')
-        .in('race_id', raceIds)
-  
-      if (error) throw error;
-  
-      if (!results || results.length === 0) {
-        setDriverStandings([]);
-        setTeamStandings([]);
-        setLoading(false);
-        return;
+      let results = [];
+      if (raceIds.length > 0) {
+        const { data: resultsData, error } = await supabase
+          .from('race_result')
+          .select('pilot_id, points, pilot:pilot(id, name, avatar_url), race_id')
+          .in('race_id', raceIds);
+
+        if (error) throw error;
+        results = resultsData;
       }
-  
-      const allZeroPoints = results.every(r => !r.points || r.points === 0);
-      if (allZeroPoints) {
-        setDriverStandings([]);
-        setTeamStandings([]);
-        setLoading(false);
-        return;
-      }
-  
-      // 3. Relación piloto-equipo-temporada
+
+      // 3. Relación piloto-equipo-temporada (siempre consultar aunque no haya resultados)
       const { data: pilotTeams, error: ptsError } = await supabase
         .from('pilot_team_season')
-        .select('pilot_id, team:team_id(id, name, logo_url)')
+        .select('pilot_id, team:team_id(id, name, logo_url), pilot:pilot_id(id, name, avatar_url)')
         .eq('season_id', selectedSeasonId)
         .in('league_id', leagueIds);
-  
+
       if (ptsError) throw ptsError;
-  
-      const pilotTeamMap: Record<string, Team> = {};
-      pilotTeams.forEach(row => { 
+
+      // Si NO hay resultados, mostrar todos los pilotos y equipos inscritos con 0 puntos
+      if (!results || results.length === 0) {
+        // Pilotos
+        const standingsArr = pilotTeams.map(row => ({
+          pilot: row.pilot,
+          totalPoints: 0,
+          team: row.team || null,
+        }));
+        const sortedDrivers = standingsArr.sort((a, b) =>
+          a.pilot.name.localeCompare(b.pilot.name)
+        );
+        setDriverStandings(sortedDrivers);
+
+        // Equipos
+        const teamMap = {};
+        pilotTeams.forEach(row => {
+          if (row.team) {
+            if (!teamMap[row.team.id]) {
+              teamMap[row.team.id] = {
+                team: row.team,
+                totalPoints: 0,
+              };
+            }
+          }
+        });
+        const sortedTeams = Object.values(teamMap).sort((a, b) =>
+          a.team.name.localeCompare(b.team.name)
+        );
+        setTeamStandings(sortedTeams);
+
+        setLoading(false);
+        return;
+      }
+
+      // Si hay resultados, lógica original
+      const pilotTeamMap = {};
+      pilotTeams.forEach(row => {
         if (row.team) {
-          pilotTeamMap[row.pilot_id] = row.team as unknown as Team;
+          pilotTeamMap[row.pilot.id] = row.team;
         }
       });
-  
-      // 4. Clasificación de pilotos
-      const standingsMap: Record<string, Standing> = {};
+
+      // Clasificación de pilotos
+      const standingsMap = {};
       results.forEach(r => {
         if (!standingsMap[r.pilot_id]) {
           standingsMap[r.pilot_id] = {
-            pilot: r.pilot as unknown as Pilot,
+            pilot: r.pilot,
             totalPoints: 0,
             team: pilotTeamMap[r.pilot_id] || null,
           };
         }
         standingsMap[r.pilot_id].totalPoints += r.points || 0;
       });
-  
-      const standingsArr = Object.values(standingsMap).sort((a, b) => b.totalPoints - a.totalPoints);
+
+      const standingsArr = Object.values(standingsMap).sort((a, b) =>
+        b.totalPoints - a.totalPoints || a.pilot.name.localeCompare(b.pilot.name)
+      );
       setDriverStandings(standingsArr);
-  
-      // 5. Clasificación de equipos
-      const teamMap: Record<string, TeamStanding> = {};
+
+      // Clasificación de equipos
+      const teamMap = {};
       results.forEach(r => {
         const team = pilotTeamMap[r.pilot_id];
         if (!team) return;
@@ -184,10 +211,12 @@ export default function StandingsScreen() {
         }
         teamMap[team.id].totalPoints += r.points || 0;
       });
-  
-      const teamsArr = Object.values(teamMap).sort((a, b) => b.totalPoints - a.totalPoints);
+
+      const teamsArr = Object.values(teamMap).sort((a, b) =>
+        b.totalPoints - a.totalPoints || a.team.name.localeCompare(b.team.name)
+      );
       setTeamStandings(teamsArr);
-  
+
       Toast.show({
         type: 'success',
         text1: 'Clasificación actualizada',
@@ -200,20 +229,13 @@ export default function StandingsScreen() {
       Toast.show({
         type: 'error',
         text1: 'Error al cargar clasificación',
-        text2: 'Intentalo de nuevo',
+        text2: 'Inténtalo de nuevo',
         position: 'top',
       });
     } finally {
       setLoading(false);
     }
   }, [leagueIds, selectedSeasonId]);
-
-  // Cuando cambian las ligas, carga standings
-  useEffect(() => {
-    if (leagueIds.length > 0) {
-      fetchStandings();
-    }
-  }, [leagueIds]);
 
   // Pull to refresh
   const onRefresh = useCallback(async () => {
@@ -290,24 +312,24 @@ export default function StandingsScreen() {
                   {idx + 1}
                 </Text>
                 <View style={styles.pilotCell}>
-                {row.pilot.avatar_url ? (
-                  <Image
-                    source={{ uri: row.pilot.avatar_url }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View style={[
-                    styles.avatar,
-                    { backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }
-                  ]}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
-                      {row.pilot.name?.[0]?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                )}
-                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                  {row.pilot.name}
-                </Text>
+                  {row.pilot.avatar_url ? (
+                    <Image
+                      source={{ uri: row.pilot.avatar_url }}
+                      style={styles.avatar}
+                    />
+                  ) : (
+                    <View style={[
+                      styles.avatar,
+                      { backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }
+                    ]}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                        {row.pilot.name?.[0]?.toUpperCase() || '?'}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                    {row.pilot.name}
+                  </Text>
                 </View>
                 <View style={styles.teamCell}>
                   {row.team?.logo_url ? (
