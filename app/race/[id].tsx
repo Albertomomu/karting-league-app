@@ -53,16 +53,16 @@ export default function RaceDetailsScreen() {
       setLoading(true);
       setError(null);
       try {
-        // Traer los datos de la carrera junto al circuito
+        // 1) Traer carrera con league_id
         const { data: raceData, error: raceError } = await supabase
           .from('race')
-          .select('*, circuit (*)')
+          .select('*, circuit (*), league_id')
           .eq('id', id)
           .single();
         if (raceError) throw raceError;
         setRace(raceData);
-
-        // Traer los resultados con join a piloto y sesión
+    
+        // 2) Traer resultados básicos
         const { data: resultsData, error: resultsError } = await supabase
           .from('race_result')
           .select(`
@@ -73,29 +73,29 @@ export default function RaceDetailsScreen() {
           .eq('race_id', id)
           .order('session_id', { ascending: true })
           .order('race_position', { ascending: true });
-
         if (resultsError) throw resultsError;
-
-        // Obtener equipos de cada piloto en la temporada de la carrera
-        const { data: pilotTeams } = await supabase
+    
+        // 3) Traer piloto→equipo usando league_id de la carrera
+        const { data: pilotTeams, error: ptError } = await supabase
           .from('pilot_team_season')
           .select('pilot_id, team:team_id(id, name, logo_url)')
-          .eq('season_id', raceData.season_id);
-
-        // Añadir equipo a cada resultado
+          .eq('league_id', raceData.league_id);   // <— aquí cambio a league_id
+        if (ptError) throw ptError;
+    
+        // 4) Adjuntar team a cada resultado
         const resultsWithTeam = (resultsData || []).map(res => ({
           ...res,
-          team: pilotTeams?.find(pt => pt.pilot_id === res.pilot?.id)?.team || null,
+          team: pilotTeams.find(pt => pt.pilot_id === res.pilot.id)?.team || null,
         }));
-
+    
         setResults(resultsWithTeam);
       } catch (err: any) {
-        setError('Error al cargar los resultados.');
         console.error(err);
+        setError('Error al cargar los resultados.');
       } finally {
         setLoading(false);
       }
-    }
+    }    
 
     if (id) fetchRaceAndResults();
   }, [id]);
