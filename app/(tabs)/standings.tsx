@@ -50,10 +50,11 @@ export default function StandingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [currentPilotId, setCurrentPilotId] = useState<string | null>(null);
   const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
+  const [currentLeagueId, setCurrentLeagueId] = useState<string | null>(null);
 
-  // 0. Obtener el piloto de la sesión actual
+  // 0. Obtener el piloto de la sesión actual y su liga para la temporada seleccionada
   useEffect(() => {
-    async function fetchCurrentPilotAndTeam() {
+    async function fetchCurrentPilotAndTeamAndLeague() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: pilot } = await supabase
@@ -63,19 +64,25 @@ export default function StandingsScreen() {
         .single();
       if (pilot) {
         setCurrentPilotId(pilot.id);
-        // Busca el equipo del piloto en la temporada seleccionada
+        // Busca el equipo y la liga del piloto en la temporada seleccionada
         const { data: pts } = await supabase
           .from('pilot_team_season')
-          .select('team_id')
+          .select('team_id, league_id')
           .eq('pilot_id', pilot.id)
           .eq('season_id', selectedSeasonId)
           .single();
         if (pts?.team_id) setCurrentTeamId(pts.team_id);
+        if (pts?.league_id) setCurrentLeagueId(pts.league_id);
+        else setCurrentLeagueId(null);
+      } else {
+        setCurrentPilotId(null);
+        setCurrentTeamId(null);
+        setCurrentLeagueId(null);
       }
     }
-    fetchCurrentPilotAndTeam();
+    fetchCurrentPilotAndTeamAndLeague();
   }, [selectedSeasonId]);
-  
+
   // 1. Cargar temporadas
   useEffect(() => {
     async function fetchSeasons() {
@@ -100,25 +107,16 @@ export default function StandingsScreen() {
     fetchSeasons();
   }, []);
 
-  // 2. Cargar leagues de la temporada seleccionada
+  // 2. Cargar solo la liga del piloto logueado para la temporada seleccionada
   useEffect(() => {
-    async function fetchLeagues() {
-      if (!selectedSeasonId) return;
-      try {
-        const { data, error } = await supabase
-          .from('league')
-          .select('id')
-          .eq('season_id', selectedSeasonId);
-        if (error) throw error;
-        setLeagueIds(data.map(l => l.id));
-      } catch (err) {
-        setError('Error cargando ligas');
-      }
+    if (currentLeagueId) {
+      setLeagueIds([currentLeagueId]);
+    } else {
+      setLeagueIds([]);
     }
-    fetchLeagues();
-  }, [selectedSeasonId]);
+  }, [currentLeagueId]);
 
-  // Limpiar standings al cambiar temporada
+  // Limpiar standings al cambiar liga
   useEffect(() => {
     if (leagueIds.length > 0) {
       fetchStandings();
@@ -141,7 +139,7 @@ export default function StandingsScreen() {
         .in('league_id', leagueIds);
 
       if (raceError) throw raceError;
-
+      console.log('races', races);
       const raceIds = races.map(r => r.id);
 
       // 2. Obtener resultados de esas carreras
@@ -154,6 +152,7 @@ export default function StandingsScreen() {
 
         if (error) throw error;
         results = resultsData;
+        console.log('results', results);
       }
 
       // 3. Relación piloto-equipo-temporada (siempre consultar aunque no haya resultados)
@@ -320,6 +319,8 @@ export default function StandingsScreen() {
           <Text style={{ color: colors.text, marginTop: 24 }}>Cargando...</Text>
         ) : error ? (
           <Text style={{ color: colors.error, marginTop: 24 }}>{error}</Text>
+        ) : leagueIds.length === 0 ? (
+          <Text style={{ color: colors.text, marginTop: 24 }}>No perteneces a ninguna liga en esta temporada.</Text>
         ) : activeTab === 'drivers' ? (
           <View style={styles.table}>
             <View style={styles.headerRow}>
@@ -399,7 +400,7 @@ export default function StandingsScreen() {
               <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>Puntos</Text>
             </View>
             {teamStandings.map((row, idx) => {
-              const isCurrentTeam = row.team.id === currentTeamId; // currentTeamId: el equipo del piloto logueado
+              const isCurrentTeam = row.team.id === currentTeamId;
               return (
                 <View key={row.team.id}>
                   <View style={[
@@ -479,10 +480,11 @@ const styles = StyleSheet.create({
   },
   position: { width: 32, fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
   pilotCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, backgroundColor: '#eee' },
-  teamCell: { width: 90, flexDirection: 'row', alignItems: 'center' },
-  teamAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 6, backgroundColor: '#eee' },
-  teamName: { fontSize: 13, flexShrink: 1 },
-  name: { fontSize: 15, flexShrink: 1 },
-  points: { width: 70, textAlign: 'right', fontWeight: 'bold', fontSize: 15 },
+  avatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+  name: { fontSize: 15, fontWeight: '500', maxWidth: 120 },
+  teamCell: { flexDirection: 'row', alignItems: 'center', width: 90 },
+  teamAvatar: { width: 24, height: 24, borderRadius: 12, marginRight: 5 },
+  teamName: { fontSize: 14, maxWidth: 60 },
+  points: { width: 70, textAlign: 'right', fontWeight: 'bold', fontSize: 16 },
 });
+
