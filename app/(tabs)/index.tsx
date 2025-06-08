@@ -142,7 +142,11 @@ export default function HomeScreen() {
         .limit(1)
         .single();
 
-      if (!nextRaceError) setNextRace(nextRaceData);
+        if (nextRaceData) {
+          setNextRace(nextRaceData);
+        } else {
+          setNextRace(null);
+        }        
 
       // Stats
       const { data: statsData, error: statsError } = await supabase

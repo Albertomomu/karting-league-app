@@ -53,6 +53,7 @@ export type PilotTeamSeason = {
   team?: Team;
   league?: League;
   season?: Season;
+  is_wildkart?: boolean;
 };
 
 // Team
