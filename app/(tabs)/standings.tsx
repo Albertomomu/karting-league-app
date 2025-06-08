@@ -165,7 +165,18 @@ export default function StandingsScreen() {
           .in('race_id', raceIds);
   
         if (error) throw error;
-        results = resultsData as RaceResult[];
+        results = resultsData
+        .map((r: any) => {
+          const pilot = Array.isArray(r.pilot) ? r.pilot[0] : r.pilot;
+          if (!pilot) return null; // Filtra resultados sin piloto
+          return {
+            pilot_id: r.pilot_id,
+            points: r.points,
+            pilot,
+            race_id: r.race_id,
+          };
+        })
+        .filter(Boolean) as RaceResult[];
       }
   
       // 3. Relación piloto-equipo-temporada
@@ -176,7 +187,19 @@ export default function StandingsScreen() {
         .in('league_id', leagueIds);
   
       if (ptsError) throw ptsError;
-      const typedPilotTeams = pilotTeams as PilotTeamSeason[];
+      const typedPilotTeams: PilotTeamSeason[] = pilotTeams
+      .map((pt: any) => {
+        const team = Array.isArray(pt.team) ? pt.team[0] : pt.team;
+        const pilot = Array.isArray(pt.pilot) ? pt.pilot[0] : pt.pilot;
+        if (!team || !pilot) return null; // Filtra si falta equipo o piloto
+        return {
+          pilot_id: pt.pilot_id,
+          is_wildkart: pt.is_wildkart,
+          team,
+          pilot,
+        };
+      })
+      .filter(Boolean) as PilotTeamSeason[];
   
       // Mapeos con tipos explícitos
       const pilotTeamMap: Record<string, Team> = {};
