@@ -145,7 +145,7 @@ export default function StandingsScreen() {
     if (!leagueIds.length) return;
     setLoading(true);
     setError(null);
-    
+  
     try {
       // 1. Obtener las carreras de las ligas
       const { data: races, error: raceError } = await supabase
@@ -166,20 +166,20 @@ export default function StandingsScreen() {
   
         if (error) throw error;
         results = resultsData
-        .map((r: any) => {
-          const pilot = Array.isArray(r.pilot) ? r.pilot[0] : r.pilot;
-          if (!pilot) return null; // Filtra resultados sin piloto
-          return {
-            pilot_id: r.pilot_id,
-            points: r.points,
-            pilot,
-            race_id: r.race_id,
-          };
-        })
-        .filter(Boolean) as RaceResult[];
+          .map((r: any) => {
+            const pilot = Array.isArray(r.pilot) ? r.pilot[0] : r.pilot;
+            if (!pilot) return null;
+            return {
+              pilot_id: r.pilot_id,
+              points: r.points,
+              pilot,
+              race_id: r.race_id,
+            };
+          })
+          .filter(Boolean) as RaceResult[];
       }
   
-      // 3. Relación piloto-equipo-temporada
+      // 3. Relación piloto-equipo-temporada (incluye todos los pilotos de la liga, no solo los que tienen puntos)
       const { data: pilotTeams, error: ptsError } = await supabase
         .from('pilot_team_season')
         .select('pilot_id, is_wildkart, team:team_id(id, name, logo_url), pilot:pilot_id(id, name, avatar_url)')
@@ -188,56 +188,56 @@ export default function StandingsScreen() {
   
       if (ptsError) throw ptsError;
       const typedPilotTeams: PilotTeamSeason[] = pilotTeams
-      .map((pt: any) => {
-        const team = Array.isArray(pt.team) ? pt.team[0] : pt.team;
-        const pilot = Array.isArray(pt.pilot) ? pt.pilot[0] : pt.pilot;
-        if (!team || !pilot) return null; // Filtra si falta equipo o piloto
-        return {
-          pilot_id: pt.pilot_id,
-          is_wildkart: pt.is_wildkart,
-          team,
-          pilot,
-        };
-      })
-      .filter(Boolean) as PilotTeamSeason[];
+        .map((pt: any) => {
+          const team = Array.isArray(pt.team) ? pt.team[0] : pt.team;
+          const pilot = Array.isArray(pt.pilot) ? pt.pilot[0] : pt.pilot;
+          if (!team || !pilot) return null;
+          return {
+            pilot_id: pt.pilot_id,
+            is_wildkart: pt.is_wildkart,
+            team,
+            pilot,
+          };
+        })
+        .filter(Boolean) as PilotTeamSeason[];
   
-      // Mapeos con tipos explícitos
+      // Mapeos
       const pilotTeamMap: Record<string, Team> = {};
       const wildkartMap: Record<string, boolean> = {};
-      
+      const pilotMap: Record<string, Pilot> = {};
       typedPilotTeams.forEach((row: PilotTeamSeason) => {
         if (row.team) {
           pilotTeamMap[row.pilot.id] = row.team;
         }
         wildkartMap[row.pilot.id] = row.is_wildkart;
+        pilotMap[row.pilot.id] = row.pilot;
       });
   
-      // Clasificación de pilotos
-      const standingsMap: Record<string, DriverStanding> = {};
+      // Suma de puntos por piloto (solo para los que tienen resultados)
+      const pointsByPilot: Record<string, number> = {};
       results.forEach((r: RaceResult) => {
-        if (wildkartMap[r.pilot_id]) return;
-        
-        if (!standingsMap[r.pilot_id]) {
-          standingsMap[r.pilot_id] = {
-            pilot: r.pilot,
-            totalPoints: 0,
-            team: pilotTeamMap[r.pilot_id] || null,
-          };
-        }
-        standingsMap[r.pilot_id].totalPoints += r.points || 0;
+        if (!pointsByPilot[r.pilot_id]) pointsByPilot[r.pilot_id] = 0;
+        pointsByPilot[r.pilot_id] += r.points || 0;
       });
   
-      const standingsArr = Object.values(standingsMap).sort((a, b) =>
-        b.totalPoints - a.totalPoints || a.pilot.name.localeCompare(b.pilot.name)
-      );
+      // Clasificación de pilotos: todos los pilotos de la liga/temporada (menos wildkart), aunque tengan 0 puntos
+      const standingsArr: DriverStanding[] = Object.keys(pilotMap)
+        .filter(pilotId => !wildkartMap[pilotId])
+        .map(pilotId => ({
+          pilot: pilotMap[pilotId],
+          totalPoints: pointsByPilot[pilotId] || 0,
+          team: pilotTeamMap[pilotId] || null,
+        }))
+        .sort((a, b) =>
+          b.totalPoints - a.totalPoints || a.pilot.name.localeCompare(b.pilot.name)
+        );
       setDriverStandings(standingsArr);
   
-      // Clasificación de equipos
+      // Clasificación de equipos (igual que antes, suma todos los puntos de sus pilotos, incluyendo wildkart)
       const teamMap: Record<string, TeamStanding> = {};
       results.forEach((r: RaceResult) => {
         const team = pilotTeamMap[r.pilot_id];
         if (!team) return;
-  
         if (!teamMap[team.id]) {
           teamMap[team.id] = {
             team,
@@ -252,14 +252,25 @@ export default function StandingsScreen() {
       );
       setTeamStandings(teamsArr);
   
-      // ... resto del código de Toast
+      Toast.show({
+        type: 'success',
+        text1: 'Clasificación actualizada',
+        text2: 'Se han actualizado las clasificaciones de pilotos y equipos',
+        position: 'top',
+      });
     } catch (err) {
-      // ... manejo de errores
+      setError('Error cargando clasificación');
+      console.log(err);
+      Toast.show({
+        type: 'error',
+        text1: 'Error al cargar clasificación',
+        text2: 'Inténtalo de nuevo',
+        position: 'top',
+      });
     } finally {
       setLoading(false);
     }
-  }, [leagueIds, selectedSeasonId]);
-  
+  }, [leagueIds, selectedSeasonId]);  
 
   // Pull to refresh
   const onRefresh = useCallback(async () => {
